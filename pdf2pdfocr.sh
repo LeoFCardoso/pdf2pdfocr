@@ -33,21 +33,22 @@ ocrutil2() {
 	#
 	file_name=$(basename $ocrutil2_page)
 	file_name_witout_ext=${file_name%.*}
-	echo "Character recognition on $ocrutil2_page"
+	# OCR to HOCR format
 	tesseract -l por $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext hocr >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
 	# Downloaded hocrTransform.py from ocrmypdf software
 	python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
+	echo "Completed character recognition on $ocrutil2_page"
 }
 # https://www.gnu.org/software/parallel/man.html#EXAMPLE:-Composed-commands
 export -f ocrutil2
 
 # When using cygwin, maybe we are using some native tools. So, we have to translate path names
-translate_path() {
+translate_path_one_file() {
 	# TODO - check if pdftk is native or cygwin based on Windows
 	if [[ $OS == *"CYGWIN"* ]]; then
-		echo `cygpath -w $1`
+		echo `cygpath -alw "$1"`
 	else
-		echo $1	
+		echo "$1"	
 	fi
 }
 
@@ -86,25 +87,34 @@ if [[ $FILE_TYPE == *"PDF"* ]]; then
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
-ls $TMP_DIR/$PREFIX*.$EXT_IMG | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel --colsep '\*' -j 20 'ocrutil2 {1} {2} {3}'
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3}'
 
 # Join PDF files into one file that contains all OCR "backgrounds"
-pdftk `translate_path $TMP_DIR/$PREFIX*.pdf` output `translate_path $TMP_DIR/$PREFIX-ocr.pdf`
+PARAM_1_JOIN=`translate_path_one_file $TMP_DIR`
+PARAM_2_JOIN=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
+pdftk "$PARAM_1_JOIN"/"$PREFIX"*.pdf output "$PARAM_2_JOIN"
 
 # Check if original PDF has some kind of protection
 PDF_PROTECTED=0
-pdftk `translate_path "$INPUT_FILE"` dump_data output /dev/null dont_ask 2>/dev/null || PDF_PROTECTED=1
+PARAM_IN_PROTECT=`translate_path_one_file "$INPUT_FILE"`
+pdftk "$PARAM_IN_PROTECT" dump_data output /dev/null dont_ask 2>/dev/null || PDF_PROTECTED=1
 
 OUTPUT_NAME=$(basename "$INPUT_FILE")
 OUTPUT_NAME_NO_EXT=${OUTPUT_NAME%.*}
 
 if [ "$PDF_PROTECTED" = "0" ]; then
 	# Merge OCR background PDF into the main PDF document
-	pdftk `translate_path "$INPUT_FILE"` multibackground `translate_path $TMP_DIR/$PREFIX-ocr.pdf` output `translate_path "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
+	PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
+	PARAM_3_MERGE=`translate_path_one_file "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE"
 else
-	echo "Original file is TIFF or PDF protected by password. I will recompose it in black and white from images  (maybe a bigger file will be generated)..."
+	echo "Original file is TIFF or PDF protected by password. I will rebuild it in black and white from images  (maybe a bigger file will be generated)..."
 	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
-	pdftk `translate_path $TMP_DIR/$PREFIX-input_unprotected.pdf` multibackground `translate_path $TMP_DIR/$PREFIX-ocr.pdf` output `translate_path "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
+	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
+	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PARAM_3_REBUILD"
 fi
 
 # Cleanup (comment to preserve temp files and debug)
