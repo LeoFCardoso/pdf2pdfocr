@@ -1,0 +1,2 @@
+cp *.sh *.py /usr/local/bin
+
