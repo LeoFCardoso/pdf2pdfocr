@@ -27,23 +27,23 @@ ocrutil2() {
 	#echo "Param 1 is file: $1"
 	ocrutil2_page=$1
 	#echo "Param 2 is tmp dir: $2"
-    ocrutil2_tmpdir=$2
-    #echo "Param 3 is script dir: $3"
-    ocr_util2_dir=$3
-    #
+	ocrutil2_tmpdir=$2
+	#echo "Param 3 is script dir: $3"
+	ocr_util2_dir=$3
+	#
 	file_name=$(basename $ocrutil2_page)
-    file_name_witout_ext=${file_name%.*}
-    echo "Character recognition on $ocrutil2_page"
-    tesseract -l por $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext hocr >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
-    # Downloaded hocrTransform.py from ocrmypdf software
-    python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
+	file_name_witout_ext=${file_name%.*}
+	echo "Character recognition on $ocrutil2_page"
+	tesseract -l por $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext hocr >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
+	# Downloaded hocrTransform.py from ocrmypdf software
+	python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
 }
 # https://www.gnu.org/software/parallel/man.html#EXAMPLE:-Composed-commands
 export -f ocrutil2
 
 # When using cygwin, maybe we are using some native tools. So, we have to translate path names
 translate_path() {
-    # TODO - check if pdftk is native or cygwin based on Windows
+	# TODO - check if pdftk is native or cygwin based on Windows
 	if [[ $OS == *"CYGWIN"* ]]; then
 		echo `cygpath -w $1`
 	else
@@ -102,9 +102,9 @@ if [ "$PDF_PROTECTED" = "0" ]; then
 	# Merge OCR background PDF into the main PDF document
 	pdftk `translate_path "$INPUT_FILE"` multibackground `translate_path $TMP_DIR/$PREFIX-ocr.pdf` output `translate_path "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
 else
-    echo "Original file is TIFF or PDF protected by password. I will recompose it in black and white from images  (maybe a bigger file will be generated)..."
-    convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
-    pdftk `translate_path $TMP_DIR/$PREFIX-input_unprotected.pdf` multibackground `translate_path $TMP_DIR/$PREFIX-ocr.pdf` output `translate_path "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	echo "Original file is TIFF or PDF protected by password. I will recompose it in black and white from images  (maybe a bigger file will be generated)..."
+	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
+	pdftk `translate_path $TMP_DIR/$PREFIX-input_unprotected.pdf` multibackground `translate_path $TMP_DIR/$PREFIX-ocr.pdf` output `translate_path "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
 fi
 
 # Cleanup (comment to preserve temp files and debug)
