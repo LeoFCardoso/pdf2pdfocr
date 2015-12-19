@@ -69,25 +69,28 @@ PREFIX=`cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 5`
 FILE_TYPE=`file "$INPUT_FILE"`
 #echo $FILE_TYPE 
 
-if [[ $FILE_TYPE == *"TIFF"* ]]; then
-	convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.pbm
-	# File extension generated
-	EXT_IMG=pbm
-	# Trying to use unpaper - can't use it in windows. So, commenting lines
-	# echo "Applying unpaper in images..."
-	# unpaper $TMP_DIR/$PREFIX-%1d.pbm $TMP_DIR/"$PREFIX"_unp-%1d.pbm --verbose > /dev/null
-	# rm $TMP_DIR/$PREFIX-*.pbm
-fi
-
 if [[ $FILE_TYPE == *"PDF"* ]]; then
 	# Create images from PFDF
 	pdftoppm -r 300 "$INPUT_FILE" $TMP_DIR/$PREFIX
 	# File extension generated
 	EXT_IMG=ppm
+else
+	if [[ $FILE_TYPE == *"TIFF"* || $FILE_TYPE == *"JPEG"* ]]; then
+		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.pbm
+		# File extension generated
+		EXT_IMG=pbm
+		# Trying to use unpaper - can't use it in windows. So, commenting lines
+		# echo "Applying unpaper in images..."
+		# unpaper $TMP_DIR/$PREFIX-%1d.pbm $TMP_DIR/"$PREFIX"_unp-%1d.pbm --verbose > /dev/null
+		# rm $TMP_DIR/$PREFIX-*.pbm
+	else
+		echo "$FILE_TYPE is not supported in this script. Exiting"
+		exit 1
+	fi
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
-ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3}'
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel --progress --colsep '\*' 'ocrutil2 {1} {2} {3}'
 
 # Join PDF files into one file that contains all OCR "backgrounds"
 PARAM_1_JOIN=`translate_path_one_file $TMP_DIR`
@@ -109,7 +112,7 @@ if [ "$PDF_PROTECTED" = "0" ]; then
 	PARAM_3_MERGE=`translate_path_one_file "$OUTPUT_NAME_NO_EXT"-OCR.pdf`
 	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE"
 else
-	echo "Original file is TIFF or PDF protected by password. I will rebuild it in black and white from images  (maybe a bigger file will be generated)..."
+	echo "Original file is not an unprotected PDF. I will rebuild it (in black and white) from images  (maybe a bigger file will be generated)..."
 	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
