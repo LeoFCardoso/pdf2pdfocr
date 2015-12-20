@@ -16,7 +16,7 @@
 # ImageMagick
 
 # This is the file to be transformed
-# Must be a TIFF or PDF
+# Must be supported image or PDF
 INPUT_FILE=$1
 
 # Global var to check operating system
@@ -42,10 +42,19 @@ ocrutil2() {
 # https://www.gnu.org/software/parallel/man.html#EXAMPLE:-Composed-commands
 export -f ocrutil2
 
-# When using cygwin, maybe we are using some native tools. So, we have to translate path names
+# When using cygwin, maybe we are using native PDFTK (in 64Bit, for instance). So, we have to translate path names
+# Prepare PDFTK detection and vars for "translate_path_one_file"
+PDFTK_NATIVE=false
+if [[ $OS == *"CYGWIN"* ]]; then
+	CYGPATH_PDFTK=`cygpath "$(which pdftk)"`
+	if [[ $CYGPATH_PDFTK == "/cygdrive/"* ]]; then
+		PDFTK_NATIVE=true  #PDFTK is Windows native
+	fi
+fi
+#
 translate_path_one_file() {
 	# TODO - check if pdftk is native or cygwin based on Windows
-	if [[ $OS == *"CYGWIN"* ]]; then
+	if [[ $OS == *"CYGWIN"* && $PDFTK_NATIVE == true ]]; then
 		echo `cygpath -alw "$1"`
 	else
 		echo "$1"	
