@@ -88,10 +88,9 @@ else
 		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.pbm
 		# File extension generated
 		EXT_IMG=pbm
-		# Trying to use unpaper - can't use it in windows. So, commenting lines
-		# echo "Applying unpaper in images..."
-		# unpaper $TMP_DIR/$PREFIX-%1d.pbm $TMP_DIR/"$PREFIX"_unp-%1d.pbm --verbose > /dev/null
-		# rm $TMP_DIR/$PREFIX-*.pbm
+		# Deskew test - TODO add command line option to user choose to deskew
+		echo "Applying deskew"
+		mogrify -deskew 40% $TMP_DIR/$PREFIX-*.pbm
 	else
 		echo "$FILE_TYPE is not supported in this script. Exiting"
 		exit 1
