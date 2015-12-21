@@ -1,2 +1,2 @@
-cp *.sh *.py /usr/local/bin
+cp pdf2pdfocr.sh hocrtransform.py /usr/local/bin
 

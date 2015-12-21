@@ -24,7 +24,8 @@ OS=`uname -s`
 
 # Return complete path of argument, except last level (filename or dirname)
 complete_path() {
-	pushd `dirname "$1"` > /dev/null
+	local DIR_NAME_1=`dirname "$1"`
+	pushd "$DIR_NAME_1" > /dev/null
 	local DIR_OUT=`pwd`
 	popd > /dev/null
 	echo "$DIR_OUT"
