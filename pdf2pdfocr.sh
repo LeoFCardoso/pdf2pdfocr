@@ -16,9 +16,10 @@
 # ImageMagick
 
 usage_and_exit() {
-	echo "Usage: $0 [-s] [-t] <input file>" 1>&2
+	echo "Usage: $0 [-s] [-t] [-o <output file>] <input file>" 1>&2
 	echo " -s -> safe mode. Does not overwrite output OCR file."  1>&2
 	echo " -t -> check text mode. Does not process if source PDF already has text."  1>&2
+	echo " -o -> Force output file to the specified location."  1>&2
 	exit 1
 }
 
@@ -74,13 +75,17 @@ translate_path_one_file() {
 ## Parameters
 #############
 OPTIND=1   # Reset just in case
-while getopts ":st" opt; do
+while getopts ":sto:" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
 		;;
 		t)
 			CHECK_TEXT_MODE=true
+		;;
+		o)
+			FORCE_OUT_MODE=true
+			FORCE_OUT_FILE="${OPTARG}"
 		;;
 		\?)
 			usage_and_exit
@@ -106,10 +111,14 @@ if [[ $CHECK_TEXT_MODE == true ]]; then
 fi
 
 # This is the output file
-OUTPUT_NAME=$(basename "$INPUT_FILE")
-OUTPUT_NAME_NO_EXT=${OUTPUT_NAME%.*}
-OUTPUT_DIR=$(complete_path "$INPUT_FILE")
-OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_NAME_NO_EXT"-OCR.pdf
+if [[ $FORCE_OUT_MODE == true ]]; then
+	OUTPUT_FILE="$FORCE_OUT_FILE"
+else
+	OUTPUT_NAME=$(basename "$INPUT_FILE")
+	OUTPUT_NAME_NO_EXT=${OUTPUT_NAME%.*}
+	OUTPUT_DIR=$(complete_path "$INPUT_FILE")
+	OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_NAME_NO_EXT"-OCR.pdf
+fi
 
 if [[ $SAFE_MODE == true && -e "$OUTPUT_FILE" ]]; then
 	echo "$OUTPUT_FILE already exists and safe mode is enabled. Exiting." 1>&2
