@@ -10,17 +10,17 @@
 # Tesseract-OCR and Tesseract-OCR-por (Portuguese is hardcoded by now)
 # Python3 (and ReportLab)
 # OCRMYPDF (for the great hocrtransform.py script) - https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
-# Poppler
+# Poppler (and xpdf)
 # Gnu Parallel
 # PDFtk Server (Cygwin only in 32 bits)
 # ImageMagick
 
-# This is the file to be transformed
-# Must be supported image or PDF
-INPUT_FILE=$1
-
-# Global var to check operating system
-OS=`uname -s`
+usage_and_exit() {
+	echo "Usage: $0 [-s] [-t] <input file>" 1>&2
+	echo " -s -> safe mode. Does not overwrite output OCR file."  1>&2
+	echo " -t -> check text mode. Does not process if source PDF already has text."  1>&2
+	exit 1
+}
 
 # Return complete path of argument, except last level (filename or dirname)
 complete_path() {
@@ -53,6 +53,7 @@ export -f ocrutil2
 
 # When using cygwin, maybe we are using native PDFTK (in 64Bit, for instance). So, we have to translate path names
 # Prepare PDFTK detection and vars for "translate_path_one_file"
+OS=`uname -s`   # Global var to check operating system
 PDFTK_NATIVE=false
 if [[ $OS == *"CYGWIN"* ]]; then
 	CYGPATH_PDFTK=`cygpath "$(which pdftk)"`
@@ -69,6 +70,51 @@ translate_path_one_file() {
 		echo "$1"	
 	fi
 }
+
+## Parameters
+#############
+OPTIND=1   # Reset just in case
+while getopts ":st" opt; do
+	case $opt in
+		s)
+			SAFE_MODE=true
+		;;
+		t)
+			CHECK_TEXT_MODE=true
+		;;
+		\?)
+			usage_and_exit
+		;;
+	esac
+done
+# Adjust mass arguments
+shift $((OPTIND - 1))
+
+## Main
+#######
+
+# This is the file to be transformed
+# Must be supported image or PDF
+INPUT_FILE=$1
+
+if [[ $CHECK_TEXT_MODE == true ]]; then
+	PDF_FONTS=$(pdffonts "$INPUT_FILE" | tail -n +3 | cut -d' ' -f1 | sort | uniq)
+	if ! ( [ "$PDF_FONTS" = '' ] || [ "$PDF_FONTS" = '[none]' ] ) ; then
+		echo "$INPUT_FILE already has text and check text mode is enabled. Exiting." 1>&2
+		exit 1
+	fi
+fi
+
+# This is the output file
+OUTPUT_NAME=$(basename "$INPUT_FILE")
+OUTPUT_NAME_NO_EXT=${OUTPUT_NAME%.*}
+OUTPUT_DIR=$(complete_path "$INPUT_FILE")
+OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_NAME_NO_EXT"-OCR.pdf
+
+if [[ $SAFE_MODE == true && -e "$OUTPUT_FILE" ]]; then
+	echo "$OUTPUT_FILE already exists and safe mode is enabled. Exiting." 1>&2
+	exit 1
+fi
 
 # Temp files
 tmpfile=$(mktemp)
@@ -101,7 +147,7 @@ else
 		# echo "Applying deskew"
 		mogrify -deskew 40% $TMP_DIR/$PREFIX-*.pbm
 	else
-		echo "$FILE_TYPE is not supported in this script. Exiting"
+		echo "$FILE_TYPE is not supported in this script. Exiting." 1>&2
 		exit 1
 	fi
 fi
@@ -119,22 +165,18 @@ PDF_PROTECTED=0
 PARAM_IN_PROTECT=`translate_path_one_file "$INPUT_FILE"`
 pdftk "$PARAM_IN_PROTECT" dump_data output /dev/null dont_ask 2>/dev/null || PDF_PROTECTED=1
 
-OUTPUT_NAME=$(basename "$INPUT_FILE")
-OUTPUT_NAME_NO_EXT=${OUTPUT_NAME%.*}
-OUTPUT_DIR=$(complete_path "$INPUT_FILE")
-
 if [ "$PDF_PROTECTED" = "0" ]; then
 	# Merge OCR background PDF into the main PDF document
 	PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
 	PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-	PARAM_3_MERGE=`translate_path_one_file "$OUTPUT_DIR/$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	PARAM_3_MERGE=`translate_path_one_file "$OUTPUT_FILE"`
 	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE"
 else
 	echo "Original file is not an unprotected PDF. I will rebuild it (in black and white) from images  (maybe a bigger file will be generated)..."
 	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_DIR/$OUTPUT_NAME_NO_EXT"-OCR.pdf`
+	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_FILE"`
 	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PARAM_3_REBUILD"
 fi
 
