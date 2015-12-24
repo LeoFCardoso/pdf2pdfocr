@@ -98,7 +98,7 @@ shift $((OPTIND - 1))
 INPUT_FILE=$1
 
 if [[ $CHECK_TEXT_MODE == true ]]; then
-	PDF_FONTS=$(pdffonts "$INPUT_FILE" | tail -n +3 | cut -d' ' -f1 | sort | uniq)
+	PDF_FONTS=$(pdffonts "$INPUT_FILE" 2>/dev/null | tail -n +3 | cut -d' ' -f1 | sort | uniq)
 	if ! ( [ "$PDF_FONTS" = '' ] || [ "$PDF_FONTS" = '[none]' ] ) ; then
 		echo "$INPUT_FILE already has text and check text mode is enabled. Exiting." 1>&2
 		exit 1
@@ -179,6 +179,9 @@ else
 	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_FILE"`
 	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PARAM_3_REBUILD"
 fi
+
+# Adjust the new file timestamp
+touch -r "$INPUT_FILE" "$OUTPUT_FILE"
 
 # Cleanup (comment to preserve temp files and debug)
 rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/$PREFIX-ocr.pdf
