@@ -187,8 +187,11 @@ if [[ "$PDF_PROTECTED" == "0" && ! $FORCE_REBUILD_MODE == true ]]; then
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
 	# TODO - maybe let user override these convert settings
-	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two 
-	convert $TMP_DIR/$PREFIX*.$EXT_IMG -colors 2 -colorspace gray -normalize -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
+	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two
+	# Better and bigger files:
+	## convert $TMP_DIR/$PREFIX*.$EXT_IMG -colors 2 -colorspace gray -normalize -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
+	# Faster conversion, smaller files, less details:
+	convert $TMP_DIR/$PREFIX*.$EXT_IMG -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_FILE"`
