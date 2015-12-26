@@ -182,7 +182,7 @@ if [ "$PDF_PROTECTED" = "0" ]; then
 	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE"
 else
 	echo "Original file is not an unprotected PDF. I will rebuild it (in black and white) from images  (maybe a bigger file will be generated)..."
-	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
+	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 -threshold 60% $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_FILE"`
