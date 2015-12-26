@@ -16,9 +16,10 @@
 # ImageMagick
 
 usage_and_exit() {
-	echo "Usage: $0 [-s] [-t] [-o <output file>] <input file>" 1>&2
+	echo "Usage: $0 [-s] [-t] [-f] [-o <output file>] <input file>" 1>&2
 	echo " -s -> safe mode. Does not overwrite output OCR file."  1>&2
 	echo " -t -> check text mode. Does not process if source PDF already has text."  1>&2
+	echo " -f -> force PDF rebuild in B&W from images."  1>&2
 	echo " -o -> Force output file to the specified location."  1>&2
 	exit 1
 }
@@ -75,13 +76,16 @@ translate_path_one_file() {
 ## Parameters
 #############
 OPTIND=1   # Reset just in case
-while getopts ":sto:" opt; do
+while getopts ":stfo:" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
 		;;
 		t)
 			CHECK_TEXT_MODE=true
+		;;
+		f)
+			FORCE_REBUILD_MODE=true
 		;;
 		o)
 			FORCE_OUT_MODE=true
@@ -174,15 +178,17 @@ PDF_PROTECTED=0
 PARAM_IN_PROTECT=`translate_path_one_file "$INPUT_FILE"`
 pdftk "$PARAM_IN_PROTECT" dump_data output /dev/null dont_ask 2>/dev/null || PDF_PROTECTED=1
 
-if [ "$PDF_PROTECTED" = "0" ]; then
+if [[ "$PDF_PROTECTED" == "0" && ! $FORCE_REBUILD_MODE == true ]]; then
 	# Merge OCR background PDF into the main PDF document
 	PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
 	PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PARAM_3_MERGE=`translate_path_one_file "$OUTPUT_FILE"`
 	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE"
 else
-	echo "Original file is not an unprotected PDF. I will rebuild it (in black and white) from images  (maybe a bigger file will be generated)..."
-	convert $TMP_DIR/$PREFIX*.$EXT_IMG -compress Group4 -threshold 60% $TMP_DIR/$PREFIX-input_unprotected.pdf
+	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
+	# TODO - maybe let user override these convert settings
+	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two 
+	convert $TMP_DIR/$PREFIX*.$EXT_IMG -colors 2 -colorspace gray -normalize -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_FILE"`
