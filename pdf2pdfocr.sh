@@ -2,24 +2,25 @@
 
 # OCR a PDF and add a text "layer" in the original file.
 # Use only open source tools.
-# Does not re-encode any image or content in original PDF (if unprotected).
+# Unless requested, does not re-encode the images inside an unprotected PDF file.
 # Leonardo Cardoso - inspired in ocrmypdf (https://github.com/jbarlow83/OCRmyPDF)
 # and this post: https://github.com/jbarlow83/OCRmyPDF/issues/8
 
 # Dependencies:
-# Tesseract-OCR and Tesseract-OCR-por (Portuguese is hardcoded by now)
+# Tesseract-OCR and Tesseract-OCR-por (Portuguese+English are hardcoded by now)
 # Python3 (and ReportLab)
 # OCRMYPDF (for the great hocrtransform.py script) - https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
 # Poppler (and xpdf)
 # Gnu Parallel
-# PDFtk Server (Cygwin only in 32 bits)
+# PDFtk Server (in Cygwin only available in '32 bits'. In Cygwin64, you must use native pdftk)
 # ImageMagick
 
 usage_and_exit() {
-	echo "Usage: $0 [-s] [-t] [-f] [-o <output file>] <input file>" 1>&2
+	echo "Usage: $0 [-s] [-t] [-f] [-d <threshold_percent>] [-o <output file>] <input file>" 1>&2
 	echo " -s -> safe mode. Does not overwrite output OCR file."  1>&2
 	echo " -t -> check text mode. Does not process if source PDF already has text."  1>&2
 	echo " -f -> force PDF rebuild in B&W from images."  1>&2
+	echo " -d -> only for images - use image magick deskew before OCR. <threshold_percent> should be a percent, e.g. '40%'."  1>&2
 	echo " -o -> Force output file to the specified location."  1>&2
 	exit 1
 }
@@ -45,7 +46,7 @@ ocrutil2() {
 	file_name=$(basename $ocrutil2_page)
 	file_name_witout_ext=${file_name%.*}
 	# OCR to HOCR format
-	tesseract -l por $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext hocr >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
+	tesseract -l por+eng $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext hocr >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
 	# Downloaded hocrTransform.py from ocrmypdf software
 	python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
 	# echo "Completed character recognition on $ocrutil2_page"
@@ -65,7 +66,6 @@ if [[ $OS == *"CYGWIN"* ]]; then
 fi
 #
 translate_path_one_file() {
-	# TODO - check if pdftk is native or cygwin based on Windows
 	if [[ $OS == *"CYGWIN"* && $PDFTK_NATIVE == true ]]; then
 		echo `cygpath -alw "$1"`
 	else
@@ -76,7 +76,7 @@ translate_path_one_file() {
 ## Parameters
 #############
 OPTIND=1   # Reset just in case
-while getopts ":stfo:" opt; do
+while getopts ":stfd:o:" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -86,6 +86,10 @@ while getopts ":stfo:" opt; do
 		;;
 		f)
 			FORCE_REBUILD_MODE=true
+		;;
+		d)
+			USE_DESKEW_MODE=true
+			DESKEW_THRESHOLD="${OPTARG}"
 		;;
 		o)
 			FORCE_OUT_MODE=true
@@ -156,9 +160,10 @@ else
 		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.pbm
 		# File extension generated
 		EXT_IMG=pbm
-		# Deskew test - TODO add command line option to user choose to deskew
-		# echo "Applying deskew"
-		mogrify -deskew 40% $TMP_DIR/$PREFIX-*.pbm
+		if [[ $USE_DESKEW_MODE == true ]]; then
+			# echo "Applying deskew"
+			mogrify -deskew "$DESKEW_THRESHOLD" $TMP_DIR/$PREFIX-*.pbm
+		fi
 	else
 		echo "$FILE_TYPE is not supported in this script. Exiting." 1>&2
 		exit 1
@@ -171,7 +176,8 @@ ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$
 # Join PDF files into one file that contains all OCR "backgrounds"
 PARAM_1_JOIN=`translate_path_one_file $TMP_DIR`
 PARAM_2_JOIN=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-pdftk "$PARAM_1_JOIN"/"$PREFIX"*.pdf output "$PARAM_2_JOIN"
+PARAM_3_JOIN=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-join.log`
+pdftk "$PARAM_1_JOIN"/"$PREFIX"*.pdf output "$PARAM_2_JOIN" 2>"$PARAM_3_JOIN"
 
 # Check if original PDF has some kind of protection
 PDF_PROTECTED=0
@@ -183,7 +189,8 @@ if [[ "$PDF_PROTECTED" == "0" && ! $FORCE_REBUILD_MODE == true ]]; then
 	PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
 	PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PARAM_3_MERGE=`translate_path_one_file "$OUTPUT_FILE"`
-	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE"
+	PARAM_4_MERGE=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-merge.log`
+	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PARAM_3_MERGE" 2>"$PARAM_4_MERGE"
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
 	# TODO - maybe let user override these convert settings
@@ -195,14 +202,15 @@ else
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PARAM_3_REBUILD=`translate_path_one_file "$OUTPUT_FILE"`
-	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PARAM_3_REBUILD"
+	PARAM_4_REBUILD=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-rebuild.log`
+	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PARAM_3_REBUILD" 2>"$PARAM_4_REBUILD"
 fi
 
 # Adjust the new file timestamp
 touch -r "$INPUT_FILE" "$OUTPUT_FILE"
 
 # Cleanup (comment to preserve temp files and debug)
-rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/$PREFIX-ocr.pdf
+rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_pdftk*.log $TMP_DIR/$PREFIX-ocr.pdf
 #
 echo "Success!"
 exit 0
