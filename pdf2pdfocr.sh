@@ -147,7 +147,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PREFIX=`cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 5`
 # echo $PREFIX
 
-FILE_TYPE=`file "$INPUT_FILE"`
+FILE_TYPE=`file -b "$INPUT_FILE"`
 #echo $FILE_TYPE 
 
 if [[ $FILE_TYPE == *"PDF"* ]]; then
