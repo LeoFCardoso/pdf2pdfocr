@@ -184,14 +184,14 @@ PDF_PROTECTED=0
 PARAM_IN_PROTECT=`translate_path_one_file "$INPUT_FILE"`
 pdftk "$PARAM_IN_PROTECT" dump_data output /dev/null dont_ask 2>/dev/null || PDF_PROTECTED=1
 
-if [[ "$PDF_PROTECTED" == "0" && ! $FORCE_REBUILD_MODE == true ]]; then
+if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 	# Merge OCR background PDF into the main PDF document
 	PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
 	PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-	PDF_OUTPUT=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
+	PDF_OUTPUT_TMP=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
 	PARAM_4_MERGE=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-merge.log`
 	ORIGINAL_PRODUCER=`pdftk "$PARAM_1_MERGE" dump_data | grep -A 1 "Producer" | grep -v "Producer" | cut -d ' ' -f '2-'`
-	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PDF_OUTPUT" 2>"$PARAM_4_MERGE"
+	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PDF_OUTPUT_TMP" 2>"$PARAM_4_MERGE"
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
 	# TODO - maybe let user override these convert settings
@@ -202,25 +202,25 @@ else
 	convert $TMP_DIR/$PREFIX*.$EXT_IMG -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-	PDF_OUTPUT=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
+	PDF_OUTPUT_TMP=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
 	PARAM_4_REBUILD=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-rebuild.log`
 	unset ORIGINAL_PRODUCER     # Here, there is no original producer
-	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PDF_OUTPUT" 2>"$PARAM_4_REBUILD"
+	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PDF_OUTPUT_TMP" 2>"$PARAM_4_REBUILD"
 fi
 
 # Adjust PDF producer (and title) information.
-WE_ARE="PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
+OUR_NAME="PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
 if [ -z "$ORIGINAL_PRODUCER" ]; then
 	# Set title and producer
 	NEW_TITLE=$(basename "$OUTPUT_FILE")
-	echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $WE_ARE" > $TMP_DIR/$PREFIX-pdfdata.txt
+	echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
 else
-	echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; $WE_ARE" > $TMP_DIR/$PREFIX-pdfdata.txt
+	echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
 fi
 PARAM_1_PRODUCER=`translate_path_one_file $TMP_DIR/$PREFIX-pdfdata.txt`
 PARAM_2_PRODUCER=`translate_path_one_file "$OUTPUT_FILE"`
 PARAM_3_PRODUCER=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-producer.log`
-pdftk "$PDF_OUTPUT" update_info "$PARAM_1_PRODUCER" output "$PARAM_2_PRODUCER" 2>"$PARAM_3_PRODUCER"
+pdftk "$PDF_OUTPUT_TMP" update_info "$PARAM_1_PRODUCER" output "$PARAM_2_PRODUCER" 2>"$PARAM_3_PRODUCER"
 
 # Adjust the new file timestamp
 touch -r "$INPUT_FILE" "$OUTPUT_FILE"
