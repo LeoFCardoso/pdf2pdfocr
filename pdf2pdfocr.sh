@@ -75,7 +75,13 @@ translate_path_one_file() {
 
 ## Parameters
 #############
-OPTIND=1   # Reset just in case
+# Reset variables
+OPTIND=1
+SAFE_MODE=false
+CHECK_TEXT_MODE=false
+FORCE_REBUILD_MODE=false
+USE_DESKEW_MODE=false
+FORCE_OUT_MODE=false
 while getopts ":stfd:o:" opt; do
 	case $opt in
 		s)
