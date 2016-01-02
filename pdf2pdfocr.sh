@@ -208,11 +208,14 @@ else
 	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PDF_OUTPUT" 2>"$PARAM_4_REBUILD"
 fi
 
-# Adjust PDF Producer information.
+# Adjust PDF producer (and title) information.
+WE_ARE="PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
 if [ -z "$ORIGINAL_PRODUCER" ]; then
-	echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)" > $TMP_DIR/$PREFIX-pdfdata.txt
+	# Set title and producer
+	NEW_TITLE=$(basename "$OUTPUT_FILE")
+	echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $WE_ARE" > $TMP_DIR/$PREFIX-pdfdata.txt
 else
-	echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)" > $TMP_DIR/$PREFIX-pdfdata.txt
+	echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; $WE_ARE" > $TMP_DIR/$PREFIX-pdfdata.txt
 fi
 PARAM_1_PRODUCER=`translate_path_one_file $TMP_DIR/$PREFIX-pdfdata.txt`
 PARAM_2_PRODUCER=`translate_path_one_file "$OUTPUT_FILE"`
