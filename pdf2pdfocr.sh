@@ -138,6 +138,8 @@ if [[ $SAFE_MODE == true && -e "$OUTPUT_FILE" ]]; then
 	echo "$OUTPUT_FILE already exists and safe mode is enabled. Exiting." 1>&2
 	exit 1
 fi
+# Initial cleanup
+rm "$OUTPUT_FILE" >/dev/null 2>&1
 
 # Temp files
 tmpfile=$(mktemp)
