@@ -16,12 +16,21 @@
 # ImageMagick
 
 usage_and_exit() {
-	echo "Usage: $0 [-s] [-t] [-f] [-d <threshold_percent>] [-o <output file>] <input file>" 1>&2
-	echo " -s -> safe mode. Does not overwrite output OCR file."  1>&2
-	echo " -t -> check text mode. Does not process if source PDF already has text."  1>&2
-	echo " -f -> force PDF rebuild in B&W from images."  1>&2
-	echo " -d -> only for images - use image magick deskew before OCR. <threshold_percent> should be a percent, e.g. '40%'."  1>&2
-	echo " -o -> Force output file to the specified location."  1>&2
+	cat 1>&2 <<EOF
+Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] <input file>
+-s -> safe mode. Does not overwrite output OCR file.
+-t -> check text mode. Does not process if source PDF already has text. 
+-f -> force PDF rebuild from extracted images.
+-g -> with images or '-f', use presets or force parameters when calling 'convert' to build the final PDF file.
+      Examples:
+      -g p1 -> a fast bitonal file ("-threshold 60% -compress Group4")
+      -g p2 -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
+      -g p3 -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
+      -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
+      Note, without -g, preset p1 is used.
+-d -> only for images - use image magick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
+-o -> Force output file to the specified location.
+EOF
 	exit 1
 }
 
@@ -82,7 +91,8 @@ CHECK_TEXT_MODE=false
 FORCE_REBUILD_MODE=false
 USE_DESKEW_MODE=false
 FORCE_OUT_MODE=false
-while getopts ":stfd:o:" opt; do
+USER_CONVERT_PARAMS=""
+while getopts ":stfg:d:o:" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -92,6 +102,9 @@ while getopts ":stfd:o:" opt; do
 		;;
 		f)
 			FORCE_REBUILD_MODE=true
+		;;
+		g)
+			USER_CONVERT_PARAMS="${OPTARG}"
 		;;
 		d)
 			USE_DESKEW_MODE=true
@@ -202,12 +215,23 @@ if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PDF_OUTPUT_TMP" 2>"$PARAM_4_MERGE"
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
-	# TODO - maybe let user override these convert settings
+	# Convert presets
 	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two
-	# Better and bigger files:
-	## convert $TMP_DIR/$PREFIX*.$EXT_IMG -colors 2 -colorspace gray -normalize -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
-	# Faster conversion, smaller files, less details:
-	convert $TMP_DIR/$PREFIX*.$EXT_IMG -threshold 60% -compress Group4 $TMP_DIR/$PREFIX-input_unprotected.pdf
+	PRESET_P1="-threshold 60% -compress Group4"
+	PRESET_P2="-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4"
+	PRESET_P3="-threshold 85% -morphology Dilate Diamond -compress Group4"
+	#
+	case "$USER_CONVERT_PARAMS" in
+		p1) CONVERT_PARAMS="$PRESET_P1" ;;
+		p2) CONVERT_PARAMS="$PRESET_P2" ;;
+		p3) CONVERT_PARAMS="$PRESET_P3" ;;
+		*) CONVERT_PARAMS="$USER_CONVERT_PARAMS" ;;
+	esac
+	if [[ $CONVERT_PARAMS == "" ]]; then
+		CONVERT_PARAMS="$PRESET_P1"
+	fi
+	#
+	convert $TMP_DIR/$PREFIX*.$EXT_IMG $CONVERT_PARAMS $TMP_DIR/$PREFIX-input_unprotected.pdf
 	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
 	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
 	PDF_OUTPUT_TMP=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
