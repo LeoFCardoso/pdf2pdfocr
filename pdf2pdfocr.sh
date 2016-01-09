@@ -128,6 +128,10 @@ shift $((OPTIND - 1))
 # This is the file to be transformed
 # Must be supported image or PDF
 INPUT_FILE=$1
+if [[ ! -e  "$INPUT_FILE" ]]; then
+	echo "$INPUT_FILE not found. Exiting."
+	exit 1
+fi
 
 if [[ $CHECK_TEXT_MODE == true ]]; then
 	PDF_FONTS=$(pdffonts "$INPUT_FILE" 2>/dev/null | tail -n +3 | cut -d' ' -f1 | sort | uniq)
