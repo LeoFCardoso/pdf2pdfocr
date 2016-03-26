@@ -176,7 +176,7 @@ else
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
-ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel -j -1 --colsep '\*' 'ocrutil2 {1} {2} {3}'
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3}'
 
 # Join PDF files into one file that contains all OCR "backgrounds"
 # -> pdfunite from poppler
