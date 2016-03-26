@@ -8,11 +8,10 @@
 
 # Dependencies:
 # Tesseract-OCR and Tesseract-OCR-por (Portuguese+English are hardcoded by now)
-# Python3 (and ReportLab)
+# Python3 (ReportLab / pypdf2)
 # OCRMYPDF (for the great hocrtransform.py script) - https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
 # Poppler (and xpdf)
 # Gnu Parallel
-# PDFtk Server (in Cygwin only available in '32 bits'. In Cygwin64, you must use native pdftk)
 # ImageMagick
 
 usage_and_exit() {
@@ -62,25 +61,6 @@ ocrutil2() {
 }
 # https://www.gnu.org/software/parallel/man.html#EXAMPLE:-Composed-commands
 export -f ocrutil2
-
-# When using cygwin, maybe we are using native PDFTK (in 64Bit, for instance). So, we have to translate path names
-# Prepare PDFTK detection and vars for "translate_path_one_file"
-OS=`uname -s`   # Global var to check operating system
-PDFTK_NATIVE=false
-if [[ $OS == *"CYGWIN"* ]]; then
-	CYGPATH_PDFTK=`cygpath "$(which pdftk)"`
-	if [[ $CYGPATH_PDFTK == "/cygdrive/"* ]]; then
-		PDFTK_NATIVE=true  #PDFTK is Windows native
-	fi
-fi
-#
-translate_path_one_file() {
-	if [[ $OS == *"CYGWIN"* && $PDFTK_NATIVE == true ]]; then
-		echo `cygpath -alw "$1"`
-	else
-		echo "$1"	
-	fi
-}
 
 ## Parameters
 #############
@@ -182,12 +162,12 @@ if [[ $FILE_TYPE == *"PDF"* ]]; then
 	EXT_IMG=ppm
 else
 	if [[ $FILE_TYPE == *"TIFF"* || $FILE_TYPE == *"JPEG"* ]]; then
-		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.pbm
 		# File extension generated
-		EXT_IMG=pbm
+		EXT_IMG=jpg
+		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.$EXT_IMG
 		if [[ $USE_DESKEW_MODE == true ]]; then
 			# echo "Applying deskew"
-			mogrify -deskew "$DESKEW_THRESHOLD" $TMP_DIR/$PREFIX-*.pbm
+			mogrify -deskew "$DESKEW_THRESHOLD" $TMP_DIR/$PREFIX-*.$EXT_IMG
 		fi
 	else
 		echo "$FILE_TYPE is not supported in this script. Exiting." 1>&2
@@ -196,27 +176,22 @@ else
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
-ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3}'
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" '{ print $1"*"tmp_dir"*"script_dir }' | sort | parallel -j -1 --colsep '\*' 'ocrutil2 {1} {2} {3}'
 
 # Join PDF files into one file that contains all OCR "backgrounds"
-PARAM_1_JOIN=`translate_path_one_file $TMP_DIR`
-PARAM_2_JOIN=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-PARAM_3_JOIN=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-join.log`
-pdftk "$PARAM_1_JOIN"/"$PREFIX"*.pdf output "$PARAM_2_JOIN" 2>"$PARAM_3_JOIN"
+# -> pdfunite from poppler
+pdfunite "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
 
-# Check if original PDF has some kind of protection
-PDF_PROTECTED=0
-PARAM_IN_PROTECT=`translate_path_one_file "$INPUT_FILE"`
-pdftk "$PARAM_IN_PROTECT" dump_data output /dev/null dont_ask 2>/dev/null || PDF_PROTECTED=1
+# Check if original PDF has some kind of protection (with pdfinfo from poppler)
+PDF_PROTECTED=1
+ENCRYPTION_INFO=`pdfinfo "$INPUT_FILE" 2>/dev/null | grep "Encrypted" | xargs | cut -d ' ' -f 2`
+if [[ "$ENCRYPTION_INFO" == "no" ]]; then
+	PDF_PROTECTED=0
+fi
 
 if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 	# Merge OCR background PDF into the main PDF document
-	PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
-	PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-	PDF_OUTPUT_TMP=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
-	PARAM_4_MERGE=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-merge.log`
-	ORIGINAL_PRODUCER=`pdftk "$PARAM_1_MERGE" dump_data | grep -A 1 "Producer" | grep -v "Producer" | cut -d ' ' -f '2-'`
-	pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PDF_OUTPUT_TMP" 2>"$PARAM_4_MERGE"
+	python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$INPUT_FILE" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge.log"
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
 	# Convert presets
@@ -236,33 +211,17 @@ else
 	fi
 	#
 	convert $TMP_DIR/$PREFIX*.$EXT_IMG $CONVERT_PARAMS $TMP_DIR/$PREFIX-input_unprotected.pdf
-	PARAM_1_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-input_unprotected.pdf`
-	PARAM_2_REBUILD=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
-	PDF_OUTPUT_TMP=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf`
-	PARAM_4_REBUILD=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-rebuild.log`
-	unset ORIGINAL_PRODUCER     # Here, there is no original producer
-	pdftk "$PARAM_1_REBUILD" multibackground "$PARAM_2_REBUILD" output "$PDF_OUTPUT_TMP" 2>"$PARAM_4_REBUILD"
+	python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$TMP_DIR/$PREFIX-input_unprotected.pdf" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-rebuild.log"
 fi
 
-# Adjust PDF producer (and title) information.
-OUR_NAME="PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
-if [ -z "$ORIGINAL_PRODUCER" ]; then
-	# Set title and producer
-	NEW_TITLE=$(basename "$OUTPUT_FILE")
-	echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
-else
-	echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
-fi
-PARAM_1_PRODUCER=`translate_path_one_file $TMP_DIR/$PREFIX-pdfdata.txt`
-PARAM_2_PRODUCER=`translate_path_one_file "$OUTPUT_FILE"`
-PARAM_3_PRODUCER=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-producer.log`
-pdftk "$PDF_OUTPUT_TMP" update_info "$PARAM_1_PRODUCER" output "$PARAM_2_PRODUCER" 2>"$PARAM_3_PRODUCER"
+# Copy the output file
+cp "$TMP_DIR/$PREFIX-OUTPUT.pdf" "$OUTPUT_FILE"
 
 # Adjust the new file timestamp
 touch -r "$INPUT_FILE" "$OUTPUT_FILE"
 
 # Cleanup (comment to preserve temp files and debug)
-rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_pdftk*.log $TMP_DIR/$PREFIX-ocr.pdf
+rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/$PREFIX-ocr.pdf
 #
 echo "Success!"
 exit 0
