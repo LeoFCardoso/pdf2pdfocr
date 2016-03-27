@@ -29,6 +29,8 @@ Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o 
       Note, without -g, preset p1 is used.
 -d -> only for images - use image magick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
 -o -> Force output file to the specified location.
+-u -> Enable bash debug mode
+-k -> Keep temporary files for debug
 EOF
 	exit 1
 }
@@ -72,7 +74,9 @@ FORCE_REBUILD_MODE=false
 USE_DESKEW_MODE=false
 FORCE_OUT_MODE=false
 USER_CONVERT_PARAMS=""
-while getopts ":stfg:d:o:" opt; do
+DEBUG_MODE=false
+DELETE_TEMPS=true
+while getopts ":stfg:d:o:uk" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -94,6 +98,12 @@ while getopts ":stfg:d:o:" opt; do
 			FORCE_OUT_MODE=true
 			FORCE_OUT_FILE="${OPTARG}"
 		;;
+		u)
+			DEBUG_MODE=true
+		;;
+		k)
+			DELETE_TEMPS=false
+		;;
 		\?)
 			usage_and_exit
 		;;
@@ -104,6 +114,10 @@ shift $((OPTIND - 1))
 
 ## Main
 #######
+
+if [[ $DEBUG_MODE == true ]]; then
+	set -x
+fi
 
 # This is the file to be transformed
 # Must be supported image or PDF
@@ -192,6 +206,7 @@ fi
 if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 	# Merge OCR background PDF into the main PDF document
 	python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$INPUT_FILE" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge.log"
+	# TODO - check if output was generated. If not, try to fallback to pdftk or another external tool
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
 	# Convert presets
@@ -221,7 +236,11 @@ cp "$TMP_DIR/$PREFIX-OUTPUT.pdf" "$OUTPUT_FILE"
 touch -r "$INPUT_FILE" "$OUTPUT_FILE"
 
 # Cleanup (comment to preserve temp files and debug)
-rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/$PREFIX-ocr.pdf
+if [[ $DELETE_TEMPS == true ]]; then
+	rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/$PREFIX-ocr.pdf
+else
+	echo "Temporary files kept in $TMP_DIR"
+fi
 #
 echo "Success!"
 exit 0
