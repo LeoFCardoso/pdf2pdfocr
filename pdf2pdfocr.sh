@@ -7,12 +7,18 @@
 # and this post: https://github.com/jbarlow83/OCRmyPDF/issues/8
 
 # Dependencies:
+# ------------
 # Tesseract-OCR and Tesseract-OCR-por (Portuguese+English are hardcoded by now)
 # Python3 (ReportLab / pypdf2)
 # OCRMYPDF (for the great hocrtransform.py script) - https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
 # Poppler (and xpdf)
 # Gnu Parallel
 # ImageMagick
+#
+# Optional dependencies:
+# ---------------------
+# pdftk - only if user want to force pdftk to do the final multibackground (overlay) 
+#
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
@@ -29,6 +35,7 @@ Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o 
       Note, without -g, preset p1 is used.
 -d -> only for images - use image magick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
 -o -> Force output file to the specified location.
+-p -> Force the use of pdftk tool to do the final overlay of files.
 -u -> Enable bash debug mode
 -k -> Keep temporary files for debug
 EOF
@@ -64,6 +71,15 @@ ocrutil2() {
 # https://www.gnu.org/software/parallel/man.html#EXAMPLE:-Composed-commands
 export -f ocrutil2
 
+# Function to remove temps
+cleanup() {
+	if [[ $DELETE_TEMPS == true ]]; then
+		rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/err_pdftk*.log $TMP_DIR/$PREFIX-ocr.pdf
+	else
+		echo "Temporary files kept in $TMP_DIR"
+	fi
+}
+
 ## Parameters
 #############
 # Reset variables
@@ -76,7 +92,8 @@ FORCE_OUT_MODE=false
 USER_CONVERT_PARAMS=""
 DEBUG_MODE=false
 DELETE_TEMPS=true
-while getopts ":stfg:d:o:uk" opt; do
+USE_PDFTK=false
+while getopts ":stfg:d:o:puk" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -97,6 +114,9 @@ while getopts ":stfg:d:o:uk" opt; do
 		o)
 			FORCE_OUT_MODE=true
 			FORCE_OUT_FILE="${OPTARG}"
+		;;
+		p)
+			USE_PDFTK=true
 		;;
 		u)
 			DEBUG_MODE=true
@@ -119,11 +139,42 @@ if [[ $DEBUG_MODE == true ]]; then
 	set -x
 fi
 
+# Handle pdftk stuff
+if [[ $USE_PDFTK == true ]]; then
+	PDFTK_PATH=$(which pdftk)
+	if [[ "$PDFTK_PATH" == "" ]]; then
+		echo "pdftk tool not installed. Try to run without '-p' flag. Exiting..." 1>&2
+		cleanup
+		exit 1
+	fi
+	# When using cygwin, maybe we are using native pdftk (in 64Bit, for instance). 
+	# So, we have to translate path names.
+	# Prepare pdftk vars for "translate_path_one_file"
+	OS=$(uname -s)   # Global var to check operating system
+	PDFTK_WINDOWS_NATIVE=false
+	if [[ "$OS" == *"CYGWIN"* ]]; then
+		CYGPATH_PDFTK=`cygpath "$(which pdftk)"`
+		if [[ $CYGPATH_PDFTK == "/cygdrive/"* ]]; then
+			PDFTK_WINDOWS_NATIVE=true  #pdftk is Windows native
+		fi
+	fi
+	# Function to translate file paths for windows / posix
+	translate_path_one_file() {
+		if [[ $OS == *"CYGWIN"* && $PDFTK_WINDOWS_NATIVE == true ]]; then
+			echo `cygpath -alw "$1"`
+		else
+			echo "$1"	
+		fi
+	}
+	#
+fi
+
 # This is the file to be transformed
 # Must be supported image or PDF
 INPUT_FILE=$1
 if [[ ! -e  "$INPUT_FILE" ]]; then
-	echo "$INPUT_FILE not found. Exiting."
+	echo "$INPUT_FILE not found. Exiting." 1>&2
+	cleanup
 	exit 1
 fi
 
@@ -131,6 +182,7 @@ if [[ $CHECK_TEXT_MODE == true ]]; then
 	PDF_FONTS=$(pdffonts "$INPUT_FILE" 2>/dev/null | tail -n +3 | cut -d' ' -f1 | sort | uniq)
 	if ! ( [ "$PDF_FONTS" = '' ] || [ "$PDF_FONTS" = '[none]' ] ) ; then
 		echo "$INPUT_FILE already has text and check text mode is enabled. Exiting." 1>&2
+		cleanup
 		exit 1
 	fi
 fi
@@ -147,6 +199,7 @@ fi
 
 if [[ $SAFE_MODE == true && -e "$OUTPUT_FILE" ]]; then
 	echo "$OUTPUT_FILE already exists and safe mode is enabled. Exiting." 1>&2
+	cleanup
 	exit 1
 fi
 # Initial cleanup
@@ -185,6 +238,7 @@ else
 		fi
 	else
 		echo "$FILE_TYPE is not supported in this script. Exiting." 1>&2
+		cleanup
 		exit 1
 	fi
 fi
@@ -205,8 +259,30 @@ fi
 
 if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 	# Merge OCR background PDF into the main PDF document
-	python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$INPUT_FILE" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge.log"
-	# TODO - check if output was generated. If not, try to fallback to pdftk or another external tool
+	if [[ $USE_PDFTK == true ]]; then
+		PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
+		PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
+		PDF_PRE_OUTPUT_TMP=`translate_path_one_file $TMP_DIR/$PREFIX-PRE-OUTPUT.pdf`
+		PARAM_4_MERGE=`translate_path_one_file $TMP_DIR/err_multiback-$PREFIX-merge.log`
+		ORIGINAL_PRODUCER=`pdftk "$PARAM_1_MERGE" dump_data | grep -A 1 "Producer" | grep -v "Producer" | cut -d ' ' -f '2-'`
+		pdftk "$PARAM_1_MERGE" multibackground "$PARAM_2_MERGE" output "$PDF_PRE_OUTPUT_TMP" 2>"$PARAM_4_MERGE"
+		# Adjust final pdf producer (and sometimes title) information.
+		OUR_NAME="PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
+		if [ -z "$ORIGINAL_PRODUCER" ]; then
+			# Set title and producer
+			NEW_TITLE=$(basename "$OUTPUT_FILE")
+			echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $OUR_NAME" > 						$TMP_DIR/$PREFIX-pdfdata.txt
+		else
+			echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
+		fi
+		PARAM_1_PRODUCER=`translate_path_one_file $TMP_DIR/$PREFIX-pdfdata.txt`
+		PARAM_2_PRODUCER=`translate_path_one_file $TMP_DIR/$PREFIX-OUTPUT.pdf` # Final file
+		PARAM_3_PRODUCER=`translate_path_one_file $TMP_DIR/err_pdftk-$PREFIX-producer.log`
+		pdftk "$PDF_PRE_OUTPUT_TMP" update_info "$PARAM_1_PRODUCER" output "$PARAM_2_PRODUCER" 2>"$PARAM_3_PRODUCER"
+	else
+		# python simple overlay implementation - also adjust producer
+		python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$INPUT_FILE" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge.log"
+	fi
 else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
 	# Convert presets
@@ -229,19 +305,22 @@ else
 	python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$TMP_DIR/$PREFIX-input_unprotected.pdf" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-rebuild.log"
 fi
 
+# Test for output file error
+if [[ ! -e  "$TMP_DIR/$PREFIX-OUTPUT.pdf" ]]; then
+	echo "Output file could not be created :( Exiting with error code." 1>&2
+	cleanup
+	exit 1
+fi
+
 # Copy the output file
 cp "$TMP_DIR/$PREFIX-OUTPUT.pdf" "$OUTPUT_FILE"
 
 # Adjust the new file timestamp
 touch -r "$INPUT_FILE" "$OUTPUT_FILE"
 
-# Cleanup (comment to preserve temp files and debug)
-if [[ $DELETE_TEMPS == true ]]; then
-	rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/$PREFIX-ocr.pdf
-else
-	echo "Temporary files kept in $TMP_DIR"
-fi
-#
+# Final cleanup
+cleanup
+
 echo "Success!"
 exit 0
 #
