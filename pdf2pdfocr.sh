@@ -31,6 +31,7 @@ Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o 
       -g p1 -> a fast bitonal file ("-threshold 60% -compress Group4")
       -g p2 -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
       -g p3 -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
+      -g p4 -> keep original color image as JPEG ("-compress JPEG")
       -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
       Note, without -g, preset p1 is used.
 -d -> only for images - use image magick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
@@ -194,7 +195,10 @@ if [[ ! -e  "$INPUT_FILE" ]]; then
 	exit 1
 fi
 
-if [[ $CHECK_TEXT_MODE == true ]]; then
+FILE_TYPE=`file -b "$INPUT_FILE"`
+#echo $FILE_TYPE 
+
+if [[ $FILE_TYPE == *"PDF"* && $CHECK_TEXT_MODE == true ]]; then
 	PDF_FONTS=$(pdffonts "$INPUT_FILE" 2>/dev/null | tail -n +3 | cut -d' ' -f1 | sort | uniq)
 	if ! ( [ "$PDF_FONTS" = '' ] || [ "$PDF_FONTS" = '[none]' ] ) ; then
 		echo "$INPUT_FILE already has text and check text mode is enabled. Exiting." 1>&2
@@ -235,9 +239,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PREFIX=`cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 5`
 # echo $PREFIX
 
-FILE_TYPE=`file -b "$INPUT_FILE"`
-#echo $FILE_TYPE 
-
 if [[ $FILE_TYPE == *"PDF"* ]]; then
 	# Create images from PFDF
 	pdftoppm -r 300 "$INPUT_FILE" $TMP_DIR/$PREFIX
@@ -267,14 +268,17 @@ ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$
 pdfunite "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
 
 # Check if original PDF has some kind of protection (with pdfinfo from poppler)
-PDF_PROTECTED=1
-ENCRYPTION_INFO=`pdfinfo "$INPUT_FILE" 2>/dev/null | grep "Encrypted" | xargs | cut -d ' ' -f 2`
-if [[ "$ENCRYPTION_INFO" == "no" ]]; then
-	PDF_PROTECTED=0
+REBUILD_PDF_FROM_IMAGES=1
+# Avoid pdfinfo freezing with non PDF files
+if [[ $FILE_TYPE == *"PDF"* ]]; then 
+	ENCRYPTION_INFO=`pdfinfo "$INPUT_FILE" 2>/dev/null | grep "Encrypted" | xargs | cut -d ' ' -f 2`
+	if [[ "$ENCRYPTION_INFO" == "no" ]]; then
+		REBUILD_PDF_FROM_IMAGES=0
+	fi
 fi
 
-if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
-	# Merge OCR background PDF into the main PDF document
+if [[ "$REBUILD_PDF_FROM_IMAGES" == "0" && $FORCE_REBUILD_MODE == false ]]; then
+	# Merge OCR background PDF into the main PDF document making a sandwich PDF
 	if [[ $USE_PDFTK == true ]]; then
 		PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
 		PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
@@ -300,17 +304,19 @@ if [[ "$PDF_PROTECTED" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 		python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$INPUT_FILE" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge.log"
 	fi
 else
-	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it (in black and white) from extracted images..."
+	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it from extracted images..."
 	# Convert presets
 	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two
 	PRESET_P1="-threshold 60% -compress Group4"
 	PRESET_P2="-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4"
 	PRESET_P3="-threshold 85% -morphology Dilate Diamond -compress Group4"
+	PRESET_P4="-compress JPEG"
 	#
 	case "$USER_CONVERT_PARAMS" in
 		p1) CONVERT_PARAMS="$PRESET_P1" ;;
 		p2) CONVERT_PARAMS="$PRESET_P2" ;;
 		p3) CONVERT_PARAMS="$PRESET_P3" ;;
+		p4) CONVERT_PARAMS="$PRESET_P4" ;;
 		*) CONVERT_PARAMS="$USER_CONVERT_PARAMS" ;;
 	esac
 	if [[ $CONVERT_PARAMS == "" ]]; then
