@@ -8,7 +8,7 @@
 
 # Dependencies:
 # ------------
-# Tesseract-OCR and Tesseract-OCR-por (Portuguese+English are hardcoded by now)
+# Tesseract-OCR and Tesseract-OCR-por
 # Python3 (ReportLab / pypdf2)
 # OCRMYPDF (for the great hocrtransform.py script) - https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
 # Poppler (and xpdf)
@@ -17,7 +17,7 @@
 #
 # Optional dependencies:
 # ---------------------
-# pdftk - only if user want to force pdftk to do the final multibackground (overlay) 
+# pdftk - only if user want to force pdftk to do the final multibackground (overlay) -p flag
 #
 
 usage_and_exit() {
