@@ -244,7 +244,7 @@ if [[ $FILE_TYPE == *"PDF"* ]]; then
 	# File extension generated
 	EXT_IMG=ppm
 else
-	if [[ $FILE_TYPE == *"TIFF"* || $FILE_TYPE == *"JPEG"* ]]; then
+	if [[ $FILE_TYPE == *"TIFF"* || $FILE_TYPE == *"JPEG"* || $FILE_TYPE == *"PNG"* ]]; then
 		# File extension generated
 		EXT_IMG=jpg
 		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.$EXT_IMG
