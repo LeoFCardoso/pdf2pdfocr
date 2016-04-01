@@ -22,7 +22,7 @@
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
-Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-u] [-k] <input file>
+Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] <input file>
 -s -> safe mode. Does not overwrite output OCR file.
 -t -> check text mode. Does not process if source PDF already has text. 
 -f -> force PDF rebuild from extracted images.
@@ -37,6 +37,7 @@ Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o 
 -o -> Force output file to the specified location.
 -p -> Force the use of pdftk tool to do the final overlay of files.
 -l -> Force tesseract to use specific languages (default: por+eng).
+-m -> Force tesseract to use HOCR with specific "pagesegmode" (default: tesseract HOCR default = 1). Use with caution.
 -u -> Enable bash debug mode.
 -k -> Keep temporary files for debug.
 EOF
@@ -62,14 +63,15 @@ ocrutil2() {
 	ocr_util2_dir=$3
 	#echo "Param 4 is tesseract language (-l): $4"
 	ocr_util2_tesseract_lang=$4
+	#echo "Param 5 is tesseract psm (-m): $5"
+	ocr_util2_tesseract_psm=$5
 	#
 	file_name=$(basename $ocrutil2_page)
 	file_name_witout_ext=${file_name%.*}
 	# OCR to HOCR format
-	# TODO - parameter pageseg_mode
 	# TODO - learn to uniform font sizes (bounding box) in hocr
 	# TODO - expert mode - let user pass tesseract custom parameters
-	tesseract -l $ocr_util2_tesseract_lang -c tessedit_create_hocr=1 -c tessedit_pageseg_mode=1 -c hocr_font_info=1 $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
+	tesseract -l $ocr_util2_tesseract_lang -c tessedit_create_hocr=1 -c tessedit_pageseg_mode=$ocr_util2_tesseract_psm -c hocr_font_info=1 $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
 	# Downloaded hocrTransform.py from ocrmypdf software
 	python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
 	# echo "Completed character recognition on $ocrutil2_page"
@@ -100,7 +102,8 @@ DEBUG_MODE=false
 DELETE_TEMPS=true
 USE_PDFTK=false
 TESS_LANGS="por+eng"
-while getopts ":stfg:d:o:pl:uk" opt; do
+TESS_PSM="1"
+while getopts ":stfg:d:o:pl:m:uk" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -127,6 +130,9 @@ while getopts ":stfg:d:o:pl:uk" opt; do
 		;;
 		l)
 			TESS_LANGS="${OPTARG}"
+		;;
+		m)
+			TESS_PSM="${OPTARG}"
 		;;
 		u)
 			DEBUG_MODE=true
@@ -254,7 +260,7 @@ else
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
-ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" -v tesseract_lang="$TESS_LANGS" '{ print $1"*"tmp_dir"*"script_dir"*"tesseract_lang }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3} {4}'
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" -v tesseract_lang="$TESS_LANGS" -v tesseract_psm="$TESS_PSM" '{ print $1"*"tmp_dir"*"script_dir"*"tesseract_lang"*"tesseract_psm }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3} {4} {5}'
 
 # Join PDF files into one file that contains all OCR "backgrounds"
 # -> pdfunite from poppler
