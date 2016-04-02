@@ -72,7 +72,7 @@ ocrutil2() {
 	# OCR to HOCR format
 	# TODO - learn to uniform font sizes (bounding box) in hocr
 	# TODO - expert mode - let user pass tesseract custom parameters
-	tesseract -l $ocr_util2_tesseract_lang -c tessedit_create_hocr=1 -c tessedit_pageseg_mode=$ocr_util2_tesseract_psm -c hocr_font_info=1 $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
+	tesseract -l $ocr_util2_tesseract_lang -c tessedit_create_hocr=1 -c tessedit_pageseg_mode=$ocr_util2_tesseract_psm $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
 	# Downloaded hocrTransform.py from ocrmypdf software
 	python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
 	# echo "Completed character recognition on $ocrutil2_page"
