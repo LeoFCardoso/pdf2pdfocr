@@ -204,7 +204,7 @@ if [[ ! -e  "$INPUT_FILE" ]]; then
 fi
 
 FILE_TYPE=`file -b "$INPUT_FILE"`
-DEBUG "Input file type is $FILE_TYPE" 
+DEBUG "Input file $INPUT_FILE: type is $FILE_TYPE" 
 
 if [[ $FILE_TYPE == *"PDF"* && $CHECK_TEXT_MODE == true ]]; then
 	PDF_FONTS=$(pdffonts "$INPUT_FILE" 2>/dev/null | tail -n +3 | cut -d' ' -f1 | sort | uniq)
@@ -278,9 +278,16 @@ ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$
 DEBUG "OCR completed"
 
 # Join PDF files into one file that contains all OCR "backgrounds"
-# -> pdfunite from poppler
-pdfunite "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
-DEBUG "Joining OCRed PDF files"
+# Workaround for bug 72720 in older poppler releases
+# https://bugs.freedesktop.org/show_bug.cgi?id=72720
+OCRED_PAGES=$(ls -1 "$TMP_DIR"/"$PREFIX"*.pdf | wc -l | xargs)
+DEBUG "We have $OCRED_PAGES ocr'ed files"
+if [[ "$OCRED_PAGES" -gt "1" ]]; then
+	pdfunite "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
+else
+	cp "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
+fi
+DEBUG "Joined ocr'ed PDF files"
 
 # Check if original PDF has some kind of protection (with pdfinfo from poppler)
 REBUILD_PDF_FROM_IMAGES=1
