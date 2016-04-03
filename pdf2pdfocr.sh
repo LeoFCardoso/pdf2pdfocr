@@ -22,7 +22,7 @@
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
-Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] <input file>
+Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
 -s -> safe mode. Does not overwrite output OCR file.
 -t -> check text mode. Does not process if source PDF already has text. 
 -f -> force PDF rebuild from extracted images.
@@ -34,15 +34,25 @@ Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o 
       -g p4 -> keep original color image as JPEG ("-compress JPEG")
       -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
       Note, without -g, preset p1 is used.
--d -> only for images - use image magick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
+-d -> only for images - use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
 -o -> Force output file to the specified location.
 -p -> Force the use of pdftk tool to do the final overlay of files.
 -l -> Force tesseract to use specific languages (default: por+eng).
 -m -> Force tesseract to use HOCR with specific "pagesegmode" (default: tesseract HOCR default = 1). Use with caution.
 -u -> Enable bash debug mode.
 -k -> Keep temporary files for debug.
+-v -> Enable verbose mode.
 EOF
 	exit 1
+}
+
+# Debug messages
+DEBUG() {
+	if [[ $VERBOSE_MODE == true ]]; then
+		local msg="$1"
+		local tstamp=`date`
+		echo -e "[$tstamp] [DEBUG]\t$msg"
+	fi
 }
 
 # Return complete path of argument, except last level (filename or dirname)
@@ -56,15 +66,10 @@ complete_path() {
 
 # OCRUtil Function - will be called from gnu parallel, so must use it's own variables
 ocrutil2() {
-	#echo "Param 1 is file: $1"
 	ocrutil2_page=$1
-	#echo "Param 2 is tmp dir: $2"
 	ocrutil2_tmpdir=$2
-	#echo "Param 3 is script dir: $3"
 	ocr_util2_dir=$3
-	#echo "Param 4 is tesseract language (-l): $4"
 	ocr_util2_tesseract_lang=$4
-	#echo "Param 5 is tesseract psm (-m): $5"
 	ocr_util2_tesseract_psm=$5
 	#
 	file_name=$(basename $ocrutil2_page)
@@ -75,7 +80,6 @@ ocrutil2() {
 	tesseract -l $ocr_util2_tesseract_lang -c tessedit_create_hocr=1 -c tessedit_pageseg_mode=$ocr_util2_tesseract_psm $ocrutil2_page $ocrutil2_tmpdir/$file_name_witout_ext >/dev/null 2>"$ocrutil2_tmpdir/tess_err_$file_name_witout_ext.log"
 	# Downloaded hocrTransform.py from ocrmypdf software
 	python3.4 "$ocr_util2_dir"/hocrtransform.py -r 300 $ocrutil2_tmpdir/$file_name_witout_ext.hocr $ocrutil2_tmpdir/$file_name_witout_ext.pdf
-	# echo "Completed character recognition on $ocrutil2_page"
 }
 # https://www.gnu.org/software/parallel/man.html#EXAMPLE:-Composed-commands
 export -f ocrutil2
@@ -104,7 +108,8 @@ DELETE_TEMPS=true
 USE_PDFTK=false
 TESS_LANGS="por+eng"
 TESS_PSM="1"
-while getopts ":stfg:d:o:pl:m:uk" opt; do
+VERBOSE_MODE=false
+while getopts ":stfg:d:o:pl:m:ukv" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -140,6 +145,9 @@ while getopts ":stfg:d:o:pl:m:uk" opt; do
 		;;
 		k)
 			DELETE_TEMPS=false
+		;;
+		v)
+			VERBOSE_MODE=true
 		;;
 		\?)
 			usage_and_exit
@@ -196,7 +204,7 @@ if [[ ! -e  "$INPUT_FILE" ]]; then
 fi
 
 FILE_TYPE=`file -b "$INPUT_FILE"`
-#echo $FILE_TYPE 
+DEBUG "Input file type is $FILE_TYPE" 
 
 if [[ $FILE_TYPE == *"PDF"* && $CHECK_TEXT_MODE == true ]]; then
 	PDF_FONTS=$(pdffonts "$INPUT_FILE" 2>/dev/null | tail -n +3 | cut -d' ' -f1 | sort | uniq)
@@ -229,15 +237,15 @@ rm "$OUTPUT_FILE" >/dev/null 2>&1
 tmpfile=$(mktemp)
 TMP_DIR=$(dirname $tmpfile)
 rm $tmpfile
-# echo "Temp dir is $TMP_DIR"
+DEBUG "Temp dir is $TMP_DIR"
 
 # Where am I?
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-# echo "Script dir is $DIR"
+DEBUG "Script dir is $DIR"
 
 # A random prefix to support multiple execution in parallel
 PREFIX=`cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 5`
-# echo $PREFIX
+DEBUG "Prefix is $PREFIX"
 
 if [[ $FILE_TYPE == *"PDF"* ]]; then
 	# Create images from PFDF
@@ -248,10 +256,10 @@ else
 	if [[ $FILE_TYPE == *"TIFF"* || $FILE_TYPE == *"JPEG"* || $FILE_TYPE == *"PNG"* ]]; then
 		# File extension generated
 		EXT_IMG=jpg
-		convert "$INPUT_FILE" -scene 1 $TMP_DIR/$PREFIX-%d.$EXT_IMG
+		convert "$INPUT_FILE" -quality 100 -scene 1 $TMP_DIR/$PREFIX-%d.$EXT_IMG
 		if [[ $USE_DESKEW_MODE == true ]]; then
-			# echo "Applying deskew"
-			mogrify -deskew "$DESKEW_THRESHOLD" $TMP_DIR/$PREFIX-*.$EXT_IMG
+			DEBUG "Applying deskew"
+			ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk '{ print $1 }' | sort | parallel --colsep '\*' mogrify -deskew "$DESKEW_THRESHOLD" :::
 		fi
 	else
 		echo "$FILE_TYPE is not supported in this script. Exiting." 1>&2
@@ -261,11 +269,18 @@ else
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
-ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" -v tesseract_lang="$TESS_LANGS" -v tesseract_psm="$TESS_PSM" '{ print $1"*"tmp_dir"*"script_dir"*"tesseract_lang"*"tesseract_psm }' | sort | parallel --colsep '\*' 'ocrutil2 {1} {2} {3} {4} {5}'
+PROGRESS_IN_PARALLEL=""
+if [[ $VERBOSE_MODE == true ]]; then
+	PROGRESS_IN_PARALLEL="--progress"
+fi
+DEBUG "Starting OCR"
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" -v tesseract_lang="$TESS_LANGS" -v tesseract_psm="$TESS_PSM" '{ print $1"*"tmp_dir"*"script_dir"*"tesseract_lang"*"tesseract_psm }' | sort | parallel $PROGRESS_IN_PARALLEL --colsep '\*' 'ocrutil2 {1} {2} {3} {4} {5}'
+DEBUG "OCR completed"
 
 # Join PDF files into one file that contains all OCR "backgrounds"
 # -> pdfunite from poppler
 pdfunite "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
+DEBUG "Joining OCRed PDF files"
 
 # Check if original PDF has some kind of protection (with pdfinfo from poppler)
 REBUILD_PDF_FROM_IMAGES=1
@@ -333,6 +348,8 @@ if [[ ! -e  "$TMP_DIR/$PREFIX-OUTPUT.pdf" ]]; then
 	cleanup
 	exit 1
 fi
+
+DEBUG "Output file created"
 
 # Copy the output file
 cp "$TMP_DIR/$PREFIX-OUTPUT.pdf" "$OUTPUT_FILE"
