@@ -22,9 +22,10 @@
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
-Usage: $0 [-s] [-t] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
+Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
 -s -> safe mode. Does not overwrite output OCR file.
--t -> check text mode. Does not process if source PDF already has text. 
+-t -> check text mode. Does not process if source PDF already has text.
+-a -> check encryption mode. Does not process if source PDF is protected.
 -f -> force PDF rebuild from extracted images.
 -g -> with images or '-f', use presets or force parameters when calling 'convert' to build the final PDF file.
       Examples:
@@ -99,6 +100,7 @@ cleanup() {
 OPTIND=1
 SAFE_MODE=false
 CHECK_TEXT_MODE=false
+CHECK_PROTECTION_MODE=false
 FORCE_REBUILD_MODE=false
 USE_DESKEW_MODE=false
 FORCE_OUT_MODE=false
@@ -109,13 +111,16 @@ USE_PDFTK=false
 TESS_LANGS="por+eng"
 TESS_PSM="1"
 VERBOSE_MODE=false
-while getopts ":stfg:d:o:pl:m:ukv" opt; do
+while getopts ":stafg:d:o:pl:m:ukv" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
 		;;
 		t)
 			CHECK_TEXT_MODE=true
+		;;
+		a)
+			CHECK_PROTECTION_MODE=true
 		;;
 		f)
 			FORCE_REBUILD_MODE=true
@@ -215,6 +220,18 @@ if [[ $FILE_TYPE == *"PDF"* && $CHECK_TEXT_MODE == true ]]; then
 	fi
 fi
 
+ENCRYPTION_INFO="empty"   # init value
+if [[ $FILE_TYPE == *"PDF"* ]]; then 
+	ENCRYPTION_INFO=`pdfinfo "$INPUT_FILE" 2>/dev/null | grep "Encrypted" | xargs | cut -d ' ' -f 2`
+fi
+
+# Check protection mode
+if [[ $CHECK_PROTECTION_MODE == true && "$ENCRYPTION_INFO" == "yes" ]]; then
+	echo "$INPUT_FILE is encrypted PDF and check encryption mode is enabled. Exiting." 1>&2
+	cleanup
+	exit 1
+fi
+
 # This is the output file
 if [[ $FORCE_OUT_MODE == true ]]; then
 	OUTPUT_FILE="$FORCE_OUT_FILE"
@@ -291,12 +308,8 @@ DEBUG "Joined ocr'ed PDF files"
 
 # Check if original PDF has some kind of protection (with pdfinfo from poppler)
 REBUILD_PDF_FROM_IMAGES=1
-# Avoid pdfinfo freezing with non PDF files
-if [[ $FILE_TYPE == *"PDF"* ]]; then 
-	ENCRYPTION_INFO=`pdfinfo "$INPUT_FILE" 2>/dev/null | grep "Encrypted" | xargs | cut -d ' ' -f 2`
-	if [[ "$ENCRYPTION_INFO" == "no" ]]; then
-		REBUILD_PDF_FROM_IMAGES=0
-	fi
+if [[ "$ENCRYPTION_INFO" == "no" ]]; then
+	REBUILD_PDF_FROM_IMAGES=0
 fi
 
 if [[ "$REBUILD_PDF_FROM_IMAGES" == "0" && $FORCE_REBUILD_MODE == false ]]; then
