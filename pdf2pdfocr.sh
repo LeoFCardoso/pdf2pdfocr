@@ -265,10 +265,12 @@ PREFIX=`cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 5`
 DEBUG "Prefix is $PREFIX"
 
 if [[ $FILE_TYPE == *"PDF"* ]]; then
+	# Using jpg to avoid big temp files in pdf with a lot of pages
+	# TODO - maybe create a flag to force PPM use (without -jpeg), because it's fast
 	# Create images from PFDF
-	pdftoppm -r 300 "$INPUT_FILE" $TMP_DIR/$PREFIX
+	pdftoppm -r 300 -jpeg "$INPUT_FILE" $TMP_DIR/$PREFIX
 	# File extension generated
-	EXT_IMG=ppm
+	EXT_IMG=jpg
 else
 	if [[ $FILE_TYPE == *"TIFF"* || $FILE_TYPE == *"JPEG"* || $FILE_TYPE == *"PNG"* ]]; then
 		# File extension generated
