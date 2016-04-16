@@ -35,7 +35,7 @@ Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>]
       -g p4 -> keep original color image as JPEG ("-compress JPEG")
       -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
       Note, without -g, preset p1 is used.
--d -> only for images - use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'.
+-d -> use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'. Take care with pdf's without '-f' flag.
 -o -> Force output file to the specified location.
 -p -> Force the use of pdftk tool to do the final overlay of files.
 -l -> Force tesseract to use specific languages (default: por+eng).
@@ -276,15 +276,16 @@ else
 		# File extension generated
 		EXT_IMG=jpg
 		convert "$INPUT_FILE" -quality 100 -scene 1 $TMP_DIR/$PREFIX-%d.$EXT_IMG
-		if [[ $USE_DESKEW_MODE == true ]]; then
-			DEBUG "Applying deskew"
-			ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk '{ print $1 }' | sort | parallel --colsep '\*' mogrify -deskew "$DESKEW_THRESHOLD" :::
-		fi
 	else
 		echo "$FILE_TYPE is not supported in this script. Exiting." 1>&2
 		cleanup
 		exit 1
 	fi
+fi
+
+if [[ $USE_DESKEW_MODE == true ]]; then
+	DEBUG "Applying deskew"
+	ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk '{ print $1 }' | sort | parallel --colsep '\*' mogrify -deskew "$DESKEW_THRESHOLD" :::
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
