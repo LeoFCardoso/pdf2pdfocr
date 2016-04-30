@@ -15,13 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3-pil \
   python3-pip \
   python3-reportlab \
-  python3-venv
-
-RUN apt-get install -y --no-install-recommends \
+  python3-venv \
   file \
   imagemagick \
   parallel \
-  pdftk
+  pdftk \
+  poppler-utils \
+  tesseract-ocr \
+# tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
+  tesseract-ocr-all
   
 # Virtualenv for python
 RUN pyvenv /appenv \
@@ -31,13 +33,6 @@ RUN pyvenv /appenv \
 RUN . /appenv/bin/activate; \
   pip3 install --upgrade pip \
   && pip3 install --upgrade pypdf2
-
-# Final dependencies
-RUN apt-get install -y --no-install-recommends \
-  poppler-utils \
-  tesseract-ocr \
-# tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
-  tesseract-ocr-all
 
 # Clean
 RUN apt-get autoremove -y && apt-get clean -y
