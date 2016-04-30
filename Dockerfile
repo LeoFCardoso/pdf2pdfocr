@@ -9,21 +9,22 @@ RUN useradd docker \
   && chown docker:docker /home/docker
 
 # Update system and install dependencies
+# Please uncomment tesseract-ocr-all if you want all languages to be installed
 RUN apt-get update && apt-get install -y --no-install-recommends \
+  file \
+  imagemagick \
   locales \
+  parallel \
+  pdftk \
+  poppler-utils \
   python3 \
   python3-pil \
   python3-pip \
   python3-reportlab \
   python3-venv \
-  file \
-  imagemagick \
-  parallel \
-  pdftk \
-  poppler-utils \
   tesseract-ocr \
-# tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
-  tesseract-ocr-all
+#  tesseract-ocr-all
+  tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
   
 # Virtualenv for python
 RUN pyvenv /appenv \
@@ -47,3 +48,4 @@ USER docker
 WORKDIR /home/docker
 
 ENTRYPOINT ["/opt/install/docker-wrapper.sh"]
+#
