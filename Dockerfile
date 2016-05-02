@@ -21,18 +21,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3-pil \
   python3-pip \
   python3-reportlab \
-  python3-venv \
   tesseract-ocr \
 #  tesseract-ocr-all
   tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
   
-# Virtualenv for python
-RUN pyvenv /appenv \
-  && pyvenv --system-site-packages /appenv
-
 # Complete python install
-RUN . /appenv/bin/activate; \
-  pip3 install --upgrade pip \
+RUN pip3 install --upgrade pip \
   && pip3 install --upgrade pypdf2
 
 # Clean
