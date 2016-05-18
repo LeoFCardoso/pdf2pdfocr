@@ -29,13 +29,13 @@ Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>]
 -f -> force PDF rebuild from extracted images.
 -g -> with images or '-f', use presets or force parameters when calling 'convert' to build the final PDF file.
       Examples:
-      -g p1 -> a fast bitonal file ("-threshold 60% -compress Group4")
-      -g p2 -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
-      -g p3 -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
-      -g p4 -> keep original color image as JPEG ("-compress JPEG")
+      -g fast -> a fast bitonal file ("-threshold 60% -compress Group4")
+      -g best -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
+      -g grayscale -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
+      -g jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG")
       -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
-      Note, without -g, preset p1 is used.
--d -> use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'. Take care with pdf's without '-f' flag.
+      Note, without -g, preset 'best' is used.
+-d -> use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'. No effect with unprotected pdf's without '-f' flag.
 -o -> Force output file to the specified location.
 -p -> Force the use of pdftk tool to do the final overlay of files.
 -l -> Force tesseract to use specific languages (default: por+eng).
@@ -345,20 +345,20 @@ else
 	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it from extracted images..."
 	# Convert presets
 	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two
-	PRESET_P1="-threshold 60% -compress Group4"
-	PRESET_P2="-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4"
-	PRESET_P3="-threshold 85% -morphology Dilate Diamond -compress Group4"
-	PRESET_P4="-compress JPEG"
+	PRESET_FAST="-threshold 60% -compress Group4"
+	PRESET_BEST="-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4"
+	PRESET_GRAYSCALE="-threshold 85% -morphology Dilate Diamond -compress Group4"
+	PRESET_JPEG="-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG"
 	#
 	case "$USER_CONVERT_PARAMS" in
-		p1) CONVERT_PARAMS="$PRESET_P1" ;;
-		p2) CONVERT_PARAMS="$PRESET_P2" ;;
-		p3) CONVERT_PARAMS="$PRESET_P3" ;;
-		p4) CONVERT_PARAMS="$PRESET_P4" ;;
+		fast) CONVERT_PARAMS="$PRESET_FAST" ;;
+		best) CONVERT_PARAMS="$PRESET_BEST" ;;
+		grayscale) CONVERT_PARAMS="$PRESET_GRAYSCALE" ;;
+		jpeg) CONVERT_PARAMS="$PRESET_JPEG" ;;
 		*) CONVERT_PARAMS="$USER_CONVERT_PARAMS" ;;
 	esac
 	if [[ $CONVERT_PARAMS == "" ]]; then
-		CONVERT_PARAMS="$PRESET_P1"
+		CONVERT_PARAMS="$PRESET_BEST"
 	fi
 	#
 	convert $TMP_DIR/$PREFIX*.$EXT_IMG $CONVERT_PARAMS $TMP_DIR/$PREFIX-input_unprotected.pdf

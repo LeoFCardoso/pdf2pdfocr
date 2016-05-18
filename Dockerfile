@@ -1,7 +1,7 @@
 # pdf2pdfocr
 #
-# VERSION               1.0
-FROM      ubuntu:15.10
+# version 1.0
+FROM ubuntu:15.10
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
 
 RUN useradd docker \
