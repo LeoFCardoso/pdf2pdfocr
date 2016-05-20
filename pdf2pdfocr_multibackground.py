@@ -48,7 +48,13 @@ for key in ipdf_info:
         value = value + "; " + our_name
         read_producer = True
     #
-    info_dict_output.update({NameObject(key): createStringObject(value)})
+    try:
+        info_dict_output.update({NameObject(key): createStringObject(value)})
+    except TypeError:
+        # This can happen with some array properties. Just mask the exception by now.
+        # TODO - fix
+        print("Warning: property " + key + " not copied to final PDF")
+    #
 #
 if not read_producer:
     info_dict_output.update({NameObject(PRODUCER_KEY): createStringObject(our_name)})
