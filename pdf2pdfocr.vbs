@@ -79,7 +79,7 @@ Sub forceCScriptExecution
             Str = Str & " " & Arg
         Next
         CreateObject( "WScript.Shell" ).Run _
-            "cscript //nologo """ & _
+            "cscript //nologo //I """ & _
             WScript.ScriptFullName & _
             """ " & Str
         WScript.Quit
@@ -100,13 +100,24 @@ path_cygwin = readRegistry("HKEY_LOCAL_MACHINE\SOFTWARE\Cygwin\setup", "rootdir"
 if path_cygwin = "" then
 	path_cygwin = readRegistry("HKEY_CURRENT_USER\SOFTWARE\Cygwin\setup", "rootdir", "")
 end if
-WScript.echo "Cygwin path is: " & path_cygwin
+' WScript.echo "Cygwin path is: " & path_cygwin
+
+' Get actual options from script to show help
+helpOut = execCommand(path_cygwin & "\bin\bash.exe --login pdf2pdfocr.sh -?")
+WScript.Echo helpOut(1)(0)
+WScript.StdOut.Write("Please enter options. Press Enter for default [-s -t] > ")
+WScript.StdIn.Read(0)
+options = WScript.StdIn.ReadLine()
+if options = "" then
+	options = "-s -t"
+end if
+' MsgBox options
 
 ' Call pdf2pdfocr script to all files passed as arguments
 set objArgs = WScript.Arguments 
 for i = 0 to objArgs.Count - 1 
 	WScript.Echo "Processing " & objArgs(i) & " ..."
-	scriptOut = execCommand(path_cygwin & "\bin\bash.exe --login pdf2pdfocr.sh -st """ & objArgs(i) & """")
+	scriptOut = execCommand(path_cygwin & "\bin\bash.exe --login pdf2pdfocr.sh " & options & " """ & objArgs(i) & """")
 	' Cygwin send "clear screen sequence" in stdout. I will remove them
 	WScript.Echo " --> Output:"
 	For j = 0 to uBound(scriptOut(0))
