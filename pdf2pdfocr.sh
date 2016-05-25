@@ -22,7 +22,7 @@
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
-Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
+Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-j <parallel_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
 -s -> safe mode. Does not overwrite output OCR file.
 -t -> check text mode. Does not process if source PDF already has text.
 -a -> check encryption mode. Does not process if source PDF is protected.
@@ -36,6 +36,7 @@ Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>]
       -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
       Note, without -g, preset 'best' is used.
 -d -> use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'. No effect with unprotected pdf's without '-f' flag.
+-j -> Run this many jobs in parallel for OCR and DESKEW. Multiply with the number of CPU cores. (default = 100% [all cores])
 -o -> Force output file to the specified location.
 -p -> Force the use of pdftk tool to do the final overlay of files.
 -l -> Force tesseract to use specific languages (default: por+eng).
@@ -103,6 +104,7 @@ CHECK_TEXT_MODE=false
 CHECK_PROTECTION_MODE=false
 FORCE_REBUILD_MODE=false
 USE_DESKEW_MODE=false
+PARALLEL_THRESHOLD="100%"
 FORCE_OUT_MODE=false
 USER_CONVERT_PARAMS=""
 DEBUG_MODE=false
@@ -111,7 +113,7 @@ USE_PDFTK=false
 TESS_LANGS="por+eng"
 TESS_PSM="1"
 VERBOSE_MODE=false
-while getopts ":stafg:d:o:pl:m:ukv" opt; do
+while getopts ":stafg:d:j:o:pl:m:ukv" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -131,6 +133,9 @@ while getopts ":stafg:d:o:pl:m:ukv" opt; do
 		d)
 			USE_DESKEW_MODE=true
 			DESKEW_THRESHOLD="${OPTARG}"
+		;;
+		j)
+			PARALLEL_THRESHOLD="${OPTARG}"
 		;;
 		o)
 			FORCE_OUT_MODE=true
@@ -285,7 +290,7 @@ fi
 
 if [[ $USE_DESKEW_MODE == true ]]; then
 	DEBUG "Applying deskew"
-	ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk '{ print $1 }' | sort | parallel --colsep '\*' mogrify -deskew "$DESKEW_THRESHOLD" :::
+	ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk '{ print $1 }' | sort | parallel -j "$PARALLEL_THRESHOLD" --colsep '\*' mogrify -deskew "$DESKEW_THRESHOLD" :::
 fi
 
 # Gnu Parallel (trust me, it speed up things here)
@@ -294,7 +299,7 @@ if [[ $VERBOSE_MODE == true ]]; then
 	PROGRESS_IN_PARALLEL="--progress"
 fi
 DEBUG "Starting OCR"
-ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" -v tesseract_lang="$TESS_LANGS" -v tesseract_psm="$TESS_PSM" '{ print $1"*"tmp_dir"*"script_dir"*"tesseract_lang"*"tesseract_psm }' | sort | parallel $PROGRESS_IN_PARALLEL --colsep '\*' 'ocrutil2 {1} {2} {3} {4} {5}'
+ls "$TMP_DIR"/"$PREFIX"*."$EXT_IMG" | awk -v tmp_dir="$TMP_DIR" -v script_dir="$DIR" -v tesseract_lang="$TESS_LANGS" -v tesseract_psm="$TESS_PSM" '{ print $1"*"tmp_dir"*"script_dir"*"tesseract_lang"*"tesseract_psm }' | sort | parallel -j "$PARALLEL_THRESHOLD" $PROGRESS_IN_PARALLEL --colsep '\*' 'ocrutil2 {1} {2} {3} {4} {5}'
 DEBUG "OCR completed"
 
 # Join PDF files into one file that contains all OCR "backgrounds"
