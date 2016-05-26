@@ -266,7 +266,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DEBUG "Script dir is $DIR"
 
 # A random prefix to support multiple execution in parallel
-PREFIX=`cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 5`
+PREFIX=`cat /dev/urandom 2>/dev/null | env LC_CTYPE=C tr -dc a-zA-Z0-9 2>/dev/null | head -c 5 2>/dev/null`
 DEBUG "Prefix is $PREFIX"
 
 if [[ $FILE_TYPE == *"PDF"* ]]; then
