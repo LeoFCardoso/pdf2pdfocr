@@ -13,7 +13,7 @@
 #
 import sys
 from PyPDF2 import PdfFileWriter, PdfFileReader
-from PyPDF2.generic import NameObject, createStringObject
+from PyPDF2.generic import createStringObject
 #
 __author__ = 'Leonardo F. Cardoso'
 #
@@ -36,28 +36,33 @@ for i in range(imagepdf.getNumPages()):
     textpage.compressContentStreams()
     output.addPage(textpage)
 #
-info_dict_output = output._info.getObject()
+info_dict_output = dict()
 ipdf_info = imagepdf.documentInfo
 # Our signature as a producer
 our_name = "PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
 read_producer = False
 PRODUCER_KEY = "/Producer"
-for key in ipdf_info:
-    value = ipdf_info[key]
-    if key == PRODUCER_KEY:
-        value = value + "; " + our_name
-        read_producer = True
-    #
-    try:
-        info_dict_output.update({NameObject(key): createStringObject(value)})
-    except TypeError:
-        # This can happen with some array properties. Just mask the exception by now.
-        # TODO - fix
-        print("Warning: property " + key + " not copied to final PDF")
+if ipdf_info is not None:
+    for key in ipdf_info:
+        value = ipdf_info[key]
+        if key == PRODUCER_KEY:
+            value = value + "; " + our_name
+            read_producer = True
+        #
+        try:
+            # Check if value can be accepted by pypdf API
+            testConversion = createStringObject(value)
+            info_dict_output[key] = value
+        except TypeError:
+            # This can happen with some array properties.
+            print("Warning: property " + key + " not copied to final PDF")
+        #
     #
 #
 if not read_producer:
-    info_dict_output.update({NameObject(PRODUCER_KEY): createStringObject(our_name)})
+    info_dict_output[PRODUCER_KEY] = our_name
+#
+output.addMetadata(info_dict_output)
 #
 with open(sys.argv[3], 'wb') as f:
     output.write(f)
