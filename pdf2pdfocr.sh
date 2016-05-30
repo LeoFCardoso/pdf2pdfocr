@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# OCR a PDF and add a text "layer" in the original file.
+# OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
 # Use only open source tools.
 # Unless requested, does not re-encode the images inside an unprotected PDF file.
 # Leonardo Cardoso - inspired in ocrmypdf (https://github.com/jbarlow83/OCRmyPDF)
@@ -252,6 +252,7 @@ if [[ $SAFE_MODE == true && -e "$OUTPUT_FILE" ]]; then
 	cleanup
 	exit 1
 fi
+
 # Initial cleanup
 rm "$OUTPUT_FILE" >/dev/null 2>&1
 
@@ -272,7 +273,7 @@ DEBUG "Prefix is $PREFIX"
 if [[ $FILE_TYPE == *"PDF"* ]]; then
 	# Using jpg to avoid big temp files in pdf with a lot of pages
 	# TODO - maybe create a flag to force PPM use (without -jpeg), because it's fast
-	# Create images from PFDF
+	# Create images from PDF
 	pdftoppm -r 300 -jpeg "$INPUT_FILE" $TMP_DIR/$PREFIX
 	# File extension generated
 	EXT_IMG=jpg
@@ -321,7 +322,7 @@ if [[ "$ENCRYPTION_INFO" == "no" ]]; then
 fi
 
 if [[ "$REBUILD_PDF_FROM_IMAGES" == "0" && $FORCE_REBUILD_MODE == false ]]; then
-	# Merge OCR background PDF into the main PDF document making a sandwich PDF
+	# Merge OCR background PDF into the main PDF document making a PDF sandwich
 	if [[ $USE_PDFTK == true ]]; then
 		PARAM_1_MERGE=`translate_path_one_file "$INPUT_FILE"`
 		PARAM_2_MERGE=`translate_path_one_file $TMP_DIR/$PREFIX-ocr.pdf`
