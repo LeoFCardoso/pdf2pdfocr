@@ -22,8 +22,8 @@
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
-Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-j <parallel_percent>] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
--s -> safe mode. Does not overwrite output OCR file.
+Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-j <parallel_percent>] [-w] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
+-s -> safe mode. Does not overwrite output [PDF | TXT] OCR file.
 -t -> check text mode. Does not process if source PDF already has text.
 -a -> check encryption mode. Does not process if source PDF is protected.
 -f -> force PDF rebuild from extracted images.
@@ -37,6 +37,7 @@ Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>]
       Note, without -g, preset 'best' is used.
 -d -> use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'. No effect with unprotected pdf's without '-f' flag.
 -j -> Run this many jobs in parallel for OCR and DESKEW. Multiply with the number of CPU cores. (default = 100% [all cores])
+-w -> Create also a text file at same location of PDF OCR file.
 -o -> Force output file to the specified location.
 -p -> Force the use of pdftk tool to do the final overlay of files.
 -l -> Force tesseract to use specific languages (default: por+eng).
@@ -108,12 +109,13 @@ PARALLEL_THRESHOLD="100%"
 FORCE_OUT_MODE=false
 USER_CONVERT_PARAMS=""
 DEBUG_MODE=false
+CREATE_TEXT_MODE=false
 DELETE_TEMPS=true
 USE_PDFTK=false
 TESS_LANGS="por+eng"
 TESS_PSM="1"
 VERBOSE_MODE=false
-while getopts ":stafg:d:j:o:pl:m:ukv" opt; do
+while getopts ":stafg:d:j:wo:pl:m:ukv" opt; do
 	case $opt in
 		s)
 			SAFE_MODE=true
@@ -136,6 +138,9 @@ while getopts ":stafg:d:j:o:pl:m:ukv" opt; do
 		;;
 		j)
 			PARALLEL_THRESHOLD="${OPTARG}"
+		;;
+		w)
+			CREATE_TEXT_MODE=true
 		;;
 		o)
 			FORCE_OUT_MODE=true
@@ -247,14 +252,25 @@ else
 	OUTPUT_FILE="$OUTPUT_DIR/$OUTPUT_NAME_NO_EXT"-OCR.pdf
 fi
 
-if [[ $SAFE_MODE == true && -e "$OUTPUT_FILE" ]]; then
-	echo "$OUTPUT_FILE already exists and safe mode is enabled. Exiting." 1>&2
+# Text output file name (-w option)
+OUTPUT_FILE_TEXT="$OUTPUT_FILE".txt
+
+if [[ ( $SAFE_MODE == true && -e "$OUTPUT_FILE" ) || ( $SAFE_MODE == true && $CREATE_TEXT_MODE == true && -e "$OUTPUT_FILE_TEXT" ) ]]; then
+	if [[ -e "$OUTPUT_FILE" ]]; then
+		echo "$OUTPUT_FILE already exists and safe mode is enabled. Exiting." 1>&2
+	fi
+	if [[ $CREATE_TEXT_MODE == true && -e "$OUTPUT_FILE_TEXT" ]]; then
+		echo "$OUTPUT_FILE_TEXT already exists and safe mode is enabled. Exiting." 1>&2
+	fi
 	cleanup
 	exit 1
 fi
 
 # Initial cleanup
 rm "$OUTPUT_FILE" >/dev/null 2>&1
+if [[ $CREATE_TEXT_MODE == true ]]; then
+	rm "$OUTPUT_FILE_TEXT" >/dev/null 2>&1
+fi
 
 # Temp files
 tmpfile=$(mktemp)
@@ -314,6 +330,12 @@ else
 	cp "$TMP_DIR"/"$PREFIX"*.pdf "$TMP_DIR/$PREFIX-ocr.pdf" 2>"$TMP_DIR/err_pdfunite-$PREFIX-join.log"
 fi
 DEBUG "Joined ocr'ed PDF files"
+
+# Create final text output
+if [[ $CREATE_TEXT_MODE == true ]]; then
+	cat "$TMP_DIR"/"$PREFIX"*.txt 1>"$OUTPUT_FILE_TEXT"
+	DEBUG "Created final text file"
+fi
 
 # Check if original PDF has some kind of protection (with pdfinfo from poppler)
 REBUILD_PDF_FROM_IMAGES=1
