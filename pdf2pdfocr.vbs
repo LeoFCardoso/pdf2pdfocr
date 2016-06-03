@@ -2,7 +2,7 @@
 '
 ' This VBS script must be used in Windows installations (Cygwin).
 ' to let the final user use the "Send To" menu option in Windows Explorer.
-' Please copy it to "shell:sendto" folder and create a shortcut.
+' Please copy it to "shell:sendto" folder or create a shortcut.
 ' Ref.: http://www.howtogeek.com/howto/windows-vista/customize-the-windows-vista-send-to-menu/
 '
 
@@ -102,17 +102,43 @@ if path_cygwin = "" then
 end if
 ' WScript.echo "Cygwin path is: " & path_cygwin
 
+' Get last options used
+Set oShell = CreateObject("WScript.Shell")
+strHomeFolder = oShell.ExpandEnvironmentStrings("%USERPROFILE%")
+strLastOptionFile = strHomeFolder & "\.pdf2pdfocr.txt"
+Const ForReading = 1
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+On Error Resume Next
+Set objFile = objFSO.OpenTextFile(strLastOptionFile, ForReading)
+If Err.Number <> 0 Then
+    lastOptionUsed = ""
+Else
+	lastOptionUsed = objFile.ReadAll
+	objFile.Close
+End If
+On Error Goto 0
 ' Get actual options from script to show help
 helpOut = execCommand(path_cygwin & "\bin\bash.exe --login pdf2pdfocr.sh -?")
 WScript.Echo helpOut(1)(0)
-WScript.StdOut.Write("Please enter options. Press Enter for default [-s -t] > ")
+WScript.StdOut.WriteLine("Please enter options.")
+WScript.StdOut.WriteLine("Use <Enter> for default [-s -t] or <.> for last used option [" & lastOptionUsed & "].")
+WScript.StdOut.Write(">> ")
 WScript.StdIn.Read(0)
 options = WScript.StdIn.ReadLine()
+RewriteLastOptionFile = True
 if options = "" then
 	options = "-s -t"
+	RewriteLastOptionFile = False
 end if
-' MsgBox options
-
+if options = "." then
+	options = lastOptionUsed
+	RewriteLastOptionFile = False
+end if
+if RewriteLastOptionFile Then
+	Set objFileW = objFSO.CreateTextFile(strLastOptionFile)
+	objFileW.Write(options)
+	objFileW.Close
+end if
 ' Call pdf2pdfocr script to all files passed as arguments
 set objArgs = WScript.Arguments 
 for i = 0 to objArgs.Count - 1 
