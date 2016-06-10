@@ -91,9 +91,9 @@ export -f ocrutil2
 # Function to remove temps
 cleanup() {
 	if [[ $DELETE_TEMPS == true ]]; then
-		rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/err_pdftk*.log $TMP_DIR/$PREFIX-ocr.pdf
+		rm -f $TMP_DIR/$PREFIX*.hocr $TMP_DIR/$PREFIX*.$EXT_IMG $TMP_DIR/$PREFIX*.txt $TMP_DIR/$PREFIX*.ps $TMP_DIR/$PREFIX*.pdf $TMP_DIR/tess_err*.log $TMP_DIR/err_multiback*.log $TMP_DIR/err_pdf2ps*.log $TMP_DIR/err_ps2pdf*.log $TMP_DIR/err_pdfunite*.log $TMP_DIR/err_pdftk*.log $TMP_DIR/$PREFIX-ocr.pdf
 	else
-		echo "Temporary files kept in $TMP_DIR"
+		echo "Temporary files kept in $TMP_DIR" 1>&2
 	fi
 }
 
@@ -362,7 +362,7 @@ if [[ "$REBUILD_PDF_FROM_IMAGES" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 		if [ -z "$ORIGINAL_PRODUCER" ]; then
 			# Set title and producer
 			NEW_TITLE=$(basename "$OUTPUT_FILE")
-			echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $OUR_NAME" > 						$TMP_DIR/$PREFIX-pdfdata.txt
+			echo -e "InfoBegin\nInfoKey: Title\nInfoValue: $NEW_TITLE\nInfoBegin\nInfoKey: Producer\nInfoValue: $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
 		else
 			echo -e "InfoBegin\nInfoKey: Producer\nInfoValue: $ORIGINAL_PRODUCER; $OUR_NAME" > $TMP_DIR/$PREFIX-pdfdata.txt
 		fi
@@ -373,9 +373,19 @@ if [[ "$REBUILD_PDF_FROM_IMAGES" == "0" && $FORCE_REBUILD_MODE == false ]]; then
 	else
 		# python simple overlay implementation - also adjust producer
 		python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$INPUT_FILE" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge.log"
+		# Sometimes, the above script fail with some malformed PDF files. The code below
+		# try to rewrite source PDF and run it again.
+		if [[ ! -e  "$TMP_DIR/$PREFIX-OUTPUT.pdf" ]]; then
+			DEBUG "Fail to merge source PDF with extracted OCR text. Trying to fix source PDF to build final file..."
+			echo "Warning: metadata wiped from final PDF file (due to possibly malformed source PDF)" 1>&2
+			pdf2ps "$INPUT_FILE" "$TMP_DIR/$PREFIX-fixPDF.ps" 2>"$TMP_DIR/err_pdf2ps-$PREFIX.log"
+			ps2pdf "$TMP_DIR/$PREFIX-fixPDF.ps" "$TMP_DIR/$PREFIX-fixPDF.pdf" 2>"$TMP_DIR/err_ps2pdf-$PREFIX.log"
+			# TODO try to preserve input file metadata
+			python3.4 "$DIR"/pdf2pdfocr_multibackground.py "$TMP_DIR/$PREFIX-fixPDF.pdf" "$TMP_DIR/$PREFIX-ocr.pdf" "$TMP_DIR/$PREFIX-OUTPUT.pdf" 2>"$TMP_DIR/err_multiback-$PREFIX-merge-fixed.log"
+		fi
 	fi
 else
-	echo "Original file is not an unprotected PDF (or forcing rebuild). I will rebuild it from extracted images..."
+	echo "Warning: metadata wiped from final PDF file (original file is not an unprotected PDF or forcing rebuild from extracted images)" 1>&2
 	# Convert presets
 	# Please read http://www.imagemagick.org/Usage/quantize/#colors_two
 	PRESET_FAST="-threshold 60% -compress Group4"
