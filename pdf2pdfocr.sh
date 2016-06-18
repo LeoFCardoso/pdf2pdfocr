@@ -46,6 +46,8 @@ Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>]
 -u -> Enable bash debug mode.
 -k -> Keep temporary files for debug.
 -v -> Enable verbose mode.
+--------
+pdf2pdfocr version 1.0
 EOF
 	exit 1
 }
