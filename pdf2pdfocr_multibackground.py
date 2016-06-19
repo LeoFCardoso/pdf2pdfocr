@@ -35,7 +35,7 @@ for i in range(imagepdf.getNumPages()):
     # print(factor_x, factor_y)
     # print(factor_x - 1, factor_y - 1)
     # Try to avoid unnecessary scale operation
-    if factor_x - 1 > scale_tolerance or factor_y - 1 > scale_tolerance:
+    if abs(factor_x - 1) > scale_tolerance or abs(factor_y - 1) > scale_tolerance:
         imagepage.scale(float(factor_x), float(factor_y))
     textpage.mergePage(imagepage)  # imagepage stay on top
     textpage.compressContentStreams()
