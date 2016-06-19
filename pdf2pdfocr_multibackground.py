@@ -23,7 +23,9 @@ imagepdf = PdfFileReader(open(sys.argv[1], 'rb'), strict=False)
 # Second file (text)
 textpdf = PdfFileReader(open(sys.argv[2], 'rb'), strict=False)
 # Copy pages to output with text
+scale_tolerance = 0.001
 for i in range(imagepdf.getNumPages()):
+    # print ("Page: ", i+1)
     imagepage = imagepdf.getPage(i)
     textpage = textpdf.getPage(i)
     # print("Img:", imagepage.mediaBox.upperRight)
@@ -31,7 +33,10 @@ for i in range(imagepdf.getNumPages()):
     factor_x = textpage.mediaBox.upperRight[0] / imagepage.mediaBox.upperRight[0]
     factor_y = textpage.mediaBox.upperRight[1] / imagepage.mediaBox.upperRight[1]
     # print(factor_x, factor_y)
-    imagepage.scale(float(factor_x), float(factor_y))
+    # print(factor_x - 1, factor_y - 1)
+    # Try to avoid unnecessary scale operation
+    if factor_x - 1 > scale_tolerance or factor_y - 1 > scale_tolerance:
+        imagepage.scale(float(factor_x), float(factor_y))
     textpage.mergePage(imagepage)  # imagepage stay on top
     textpage.compressContentStreams()
     output.addPage(textpage)
