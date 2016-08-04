@@ -36,8 +36,21 @@ for i in range(imagepdf.getNumPages()):
     # print(factor_x - 1, factor_y - 1)
     # Try to avoid unnecessary scale operation
     if abs(factor_x - 1) > scale_tolerance or abs(factor_y - 1) > scale_tolerance:
+        # print("Scaling...")
         imagepage.scale(float(factor_x), float(factor_y))
-    textpage.mergePage(imagepage)  # imagepage stay on top
+    # Handle rotation
+    rotate_angle = imagepage.get('/Rotate')
+    # print("Page rotate angle is", rotate_angle)
+    if rotate_angle is None:
+        rotate_angle = 0
+    #
+    # imagepage stay on top
+    if rotate_angle == 0:
+        textpage.mergePage(imagepage)
+    else:
+        textpage.mergeRotatedTranslatedPage(imagepage, (-1*rotate_angle), imagepage.mediaBox.getWidth() / 2,
+                                            imagepage.mediaBox.getHeight() / 2)
+    #
     textpage.compressContentStreams()
     output.addPage(textpage)
 #
