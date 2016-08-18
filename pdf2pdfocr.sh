@@ -34,7 +34,7 @@ Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>]
       -g best -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
       -g grayscale -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
       -g jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG")
-      -g jpeg2000 -> keep original color image as JPEG2000 ("-quality 32% -compress JPEG2000" - fails on Windows/Cygwin)
+      -g jpeg2000 -> keep original color image as JPEG2000 ("-quality 32% -compress JPEG2000")
       -g "-threshold 60% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
       Note, without -g, preset 'best' is used.
 -d -> use imagemagick deskew *before* OCR. <threshold_percent> should be a percent, e.g. '40%'. No effect with unprotected pdf's without '-f' flag.
