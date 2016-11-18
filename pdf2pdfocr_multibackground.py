@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.4
 ##############################################################################
 # Copyright (c) 2016: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # Emulate pdftk multibackground operator
-# $1 - first file (preserves metadata)
+# $1 - first file (foreground)
 # $2 - second file (background)
 # $3 - output file
 # User should pass correct parameters. There is no parameter check.
@@ -13,7 +13,6 @@
 #
 import sys
 from PyPDF2 import PdfFileWriter, PdfFileReader
-from PyPDF2.generic import createStringObject
 #
 __author__ = 'Leonardo F. Cardoso'
 #
@@ -53,34 +52,6 @@ for i in range(imagepdf.getNumPages()):
     #
     textpage.compressContentStreams()
     output.addPage(textpage)
-#
-info_dict_output = dict()
-ipdf_info = imagepdf.documentInfo
-# Our signature as a producer
-our_name = "PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
-read_producer = False
-PRODUCER_KEY = "/Producer"
-if ipdf_info is not None:
-    for key in ipdf_info:
-        value = ipdf_info[key]
-        if key == PRODUCER_KEY:
-            value = value + "; " + our_name
-            read_producer = True
-        #
-        try:
-            # Check if value can be accepted by pypdf API
-            testConversion = createStringObject(value)
-            info_dict_output[key] = value
-        except TypeError:
-            # This can happen with some array properties.
-            print("Warning: property " + key + " not copied to final PDF")
-        #
-    #
-#
-if not read_producer:
-    info_dict_output[PRODUCER_KEY] = our_name
-#
-output.addMetadata(info_dict_output)
 #
 with open(sys.argv[3], 'wb') as f:
     output.write(f)
