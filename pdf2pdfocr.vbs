@@ -1,6 +1,6 @@
 ' PDF2PDFOCR
 '
-' This VBS script must be used in Windows installations (Cygwin).
+' This VBS script must be used in Windows installations.
 ' to let the final user use the "Send To" menu option in Windows Explorer.
 ' Please copy it to "shell:sendto" folder or create a shortcut.
 ' Ref.: http://www.howtogeek.com/howto/windows-vista/customize-the-windows-vista-send-to-menu/
@@ -38,38 +38,6 @@ function execCommand(cmd)
 	execCommand = functionOut
 end function
 
-' Return true is OS is 64 bits
-Function Is64BitOS()
-    Const Path = "winmgmts:root\cimv2:Win32_Processor='cpu0'"
-    Is64BitOS = (GetObject(Path).AddressWidth = 64)
-End Function
-
-' Read a value from default registry.
-' If value cannot be found and architecture is 64 bit, then try 32 bit registry
-function readRegistry (strRegistryKey, strValue, strDefault)
-	Dim WSHShell, value
-	On Error Resume Next
-	Set WSHShell = CreateObject("WScript.Shell")
-	value = WSHShell.RegRead(strRegistryKey & "\" & strValue)
-	if err.number = 0 then
-		readRegistry=value
-	else
-		if Is64BitOS() then
-			regCommand = execCommand("FOR /F ""usebackq skip=2 tokens=1-2*"" %A IN (`REG QUERY " & strRegistryKey & " /v " & strValue & " /reg:32 2^>nul`) do @echo %C")
-			outRegCommand = regCommand(0)
-			outRegStr = join(outRegCommand)
-			if outRegStr <> "" then
-				readRegistry = outRegStr
-			else
-				readRegistry = strDefault
-			end if
-		else
-			readRegistry=strDefault
-		end if
-	end if
-	set WSHShell = nothing
-end function
-
 ' Credits - http://stackoverflow.com/questions/4692542/force-a-vbs-to-run-using-cscript-instead-of-wscript
 Sub forceCScriptExecution
     Dim Arg, Str
@@ -95,13 +63,6 @@ End Sub
 ' ******* MAIN ***
 forceCScriptExecution
 
-' Find cygwin root dir
-path_cygwin = readRegistry("HKEY_LOCAL_MACHINE\SOFTWARE\Cygwin\setup", "rootdir", "")
-if path_cygwin = "" then
-	path_cygwin = readRegistry("HKEY_CURRENT_USER\SOFTWARE\Cygwin\setup", "rootdir", "")
-end if
-' WScript.echo "Cygwin path is: " & path_cygwin
-
 ' Get last options used
 Set oShell = CreateObject("WScript.Shell")
 strHomeFolder = oShell.ExpandEnvironmentStrings("%USERPROFILE%")
@@ -118,8 +79,10 @@ Else
 End If
 On Error Goto 0
 ' Get actual options from script to show help
-helpOut = execCommand(path_cygwin & "\bin\bash.exe --login pdf2pdfocr.sh -?")
-WScript.Echo helpOut(1)(0)
+helpOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py --help")
+For Each helpMessage In helpOut(0)
+	WScript.StdOut.WriteLine(helpMessage)
+Next
 WScript.StdOut.WriteLine("Please enter options.")
 WScript.StdOut.WriteLine("Use <Enter> for default [-s -t] or <.> for last used option [" & lastOptionUsed & "].")
 WScript.StdOut.Write(">> ")
@@ -143,18 +106,15 @@ end if
 set objArgs = WScript.Arguments 
 for i = 0 to objArgs.Count - 1 
 	WScript.Echo "Processing " & objArgs(i) & " ..."
-	scriptOut = execCommand(path_cygwin & "\bin\bash.exe --login pdf2pdfocr.sh " & options & " """ & objArgs(i) & """")
-	' Cygwin send "clear screen sequence" in stdout. I will remove them
+	scriptOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py " & options & " -j 0.9 -i """ & objArgs(i) & """")
 	WScript.Echo " --> Output:"
 	For j = 0 to uBound(scriptOut(0))
 		message = scriptOut(0)(j)
-		message = Replace (message, Chr(27)&"[H"&Chr(27)&"[J", "", 1, -1, vbTextCompare)
 		WScript.Echo message
 	Next
 	WScript.Echo " --> Errors/Warnings:"
 	For k = 0 to uBound(scriptOut(1))
 		message = scriptOut(1)(k)
-		message = Replace (message, Chr(27)&"[H"&Chr(27)&"[J", "", 1, -1, vbTextCompare)
 		WScript.Echo message
 	Next
 	WScript.Echo "---------------------------------------"

@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+# THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+# THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+# THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+# THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+# THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+
 # OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
 # Use only open source tools.
 # Unless requested, does not re-encode the images inside an unprotected PDF file.
@@ -23,6 +30,11 @@
 
 usage_and_exit() {
 	cat 1>&2 <<EOF
+THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py
+---
 Usage: $0 [-s] [-t] [-a] [-f] [-g <convert_parameters>] [-d <threshold_percent>] [-j <parallel_percent>] [-w] [-o <output file>] [-p] [-l <langs>] [-m <pagesegmode>] [-u] [-k] [-v] <input file>
 -s -> safe mode. Does not overwrite output [PDF | TXT] OCR file.
 -t -> check text mode. Does not process if source PDF already has text.
@@ -178,6 +190,11 @@ shift $((OPTIND - 1))
 
 ## Main
 #######
+
+echo "THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py"
+echo "THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py"
+echo "THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py"
+echo "THIS SCRIPT IS DEPRECATED. PLEASE USE pdf2pdfocr.py"
 
 if [[ $DEBUG_MODE == true ]]; then
 	set -x
