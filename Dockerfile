@@ -1,26 +1,26 @@
 # pdf2pdfocr
 #
 # version 1.0
-FROM ubuntu:15.10
+FROM ubuntu:16.04
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
 
 RUN useradd docker \
   && mkdir /home/docker \
   && chown docker:docker /home/docker
 
-# Update system and install dependencies
 # Please uncomment tesseract-ocr-all if you want all languages to be installed
 RUN apt-get update && apt-get install -y --no-install-recommends \
   file \
+  ghostscript \
   imagemagick \
   locales \
-  parallel \
   pdftk \
   poppler-utils \
   python3 \
   python3-pil \
   python3-pip \
   python3-reportlab \
+  python3-setuptools\
   tesseract-ocr \
 #  tesseract-ocr-all
   tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng

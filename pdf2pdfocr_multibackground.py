@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.4
+#!/usr/bin/env python3
 ##############################################################################
 # Copyright (c) 2016: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr

@@ -38,7 +38,7 @@ It's also possible to pull the docker image from docker hub.
     docker pull leofcardoso/pdf2pdfocr
 You can run the application with docker run.
 
-    docker run --rm -v "$(pwd):/home/docker" leofcardoso/pdf2pdfocr ./sample_file.pdf
+    docker run --rm -v "$(pwd):/home/docker" leofcardoso/pdf2pdfocr -v -i ./sample_file.pdf
 # basic usage
 This will create a searchable (OCR) PDF file in the same dir of "input_file".  
 
