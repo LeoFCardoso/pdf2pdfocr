@@ -28,6 +28,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import time
 
 import PyPDF2
 
@@ -518,9 +519,15 @@ Examples:
     #
     debug("Starting OCR...")
     ocr_pool = multiprocessing.Pool(cpu_to_use)
-    ocr_pool.starmap(do_ocr, zip(image_file_list, itertools.repeat(tess_langs), itertools.repeat(tess_psm),
-                                 itertools.repeat(tmp_dir), itertools.repeat(script_dir), itertools.repeat(shell_mode),
-                                 itertools.repeat(path_tesseract), itertools.repeat(path_this_python)))
+    ocr_pool_map = ocr_pool.starmap_async(do_ocr,
+                                          zip(image_file_list, itertools.repeat(tess_langs), itertools.repeat(tess_psm),
+                                              itertools.repeat(tmp_dir), itertools.repeat(script_dir),
+                                              itertools.repeat(shell_mode),
+                                              itertools.repeat(path_tesseract), itertools.repeat(path_this_python)))
+    while not ocr_pool_map.ready():
+        # TODO - how many *pages* remaining?
+        debug("Waiting for OCR to complete. {0} tasks remaining...".format(ocr_pool_map._number_left))
+        time.sleep(5)
     #
     debug("OCR completed")
     # Join PDF files into one file that contains all OCR "backgrounds"
