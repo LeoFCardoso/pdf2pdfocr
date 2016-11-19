@@ -1,1 +1,1 @@
-cp pdf2pdfocr.sh pdf2pdfocr_multibackground.py hocrtransform.py /usr/local/bin
+cp pdf2pdfocr.py pdf2pdfocr_multibackground.py hocrtransform.py /usr/local/bin

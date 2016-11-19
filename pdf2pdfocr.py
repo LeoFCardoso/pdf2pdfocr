@@ -18,6 +18,7 @@ import errno
 import fnmatch
 import glob
 import itertools
+import math
 import multiprocessing
 import os
 import random
@@ -50,7 +51,6 @@ def best_effort_remove(filename):
     except OSError as e:
         if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
             raise  # re-raise exception if a different error occured
-            #
 
 
 # find files in filesystem
@@ -70,6 +70,18 @@ def cleanup(param_delete, param_tmp_dir, param_prefix):
             os.remove(f)
     else:
         eprint("Temporary files kept in {0}".format(param_tmp_dir))
+
+
+def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_file_name, param_shell_mode):
+    """
+    Convert PDF to image file.
+    Will be called from multiprocessing, so no global variables are allowed.
+    """
+    first_page = param_page_range[0]
+    last_page = param_page_range[1]
+    pimage = subprocess.Popen([param_path_pdftoppm, '-f', str(first_page), '-l', str(last_page), '-r', '300',
+                               '-jpeg', param_input_file, param_file_name], shell=param_shell_mode)
+    pimage.wait()
 
 
 def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mogrify):
@@ -178,6 +190,36 @@ def edit_producer(param_source_file, param_input_file_metadata, param_output_fil
     #
     file_source.close()
 #
+
+
+def calculate_ranges(input_file_number_of_pages, cpu_to_use):
+    """
+    calculate ranges to run pdptoppm in parallel. Each CPU available will run well defined page range
+    :param input_file_number_of_pages:
+    :param cpu_to_use:
+    :return:
+    """
+    if input_file_number_of_pages is None:
+        return None
+    #
+    range_size = math.ceil(input_file_number_of_pages / cpu_to_use)
+    number_of_ranges = math.ceil(input_file_number_of_pages / range_size)
+    result = []
+    for i in range(0, number_of_ranges):
+        range_start = (range_size * i) + 1
+        range_end = (range_size * i) + range_size
+        # Handle last range
+        if range_end > input_file_number_of_pages:
+            range_end = input_file_number_of_pages
+        result.append((range_start, range_end))
+    # Check result
+    check_pages = 0
+    for created_range in result:
+        check_pages += (created_range[1] - created_range[0]) + 1
+    if check_pages != input_file_number_of_pages:
+        raise ArithmeticError("Please check 'calculate_ranges' function, something is wrong...")
+    #
+    return result
 
 
 # -------------
@@ -364,9 +406,16 @@ Examples:
     input_file_has_text = False
     input_file_is_encrypted = False
     input_file_metadata = dict()
+    input_file_number_of_pages = None
     if input_file_type == "application/pdf":
         pdfFileObj = open(input_file, 'rb')  # read binary
         pdfReader = PyPDF2.PdfFileReader(pdfFileObj, strict=False)
+        try:
+            input_file_number_of_pages = pdfReader.getNumPages()
+        except Exception:
+            eprint("Warning: could not read input file number of pages.")
+            input_file_number_of_pages = None
+        #
         input_file_is_encrypted = pdfReader.isEncrypted
         if not input_file_is_encrypted:
             input_file_metadata = pdfReader.documentInfo
@@ -423,11 +472,27 @@ Examples:
     script_dir = os.path.dirname(os.path.abspath(__file__)) + os.path.sep
     debug("Script dir is {0}".format(script_dir))
     #
-    extension_images = "jpg"
+    cpu_count = multiprocessing.cpu_count()
+    cpu_to_use = int(cpu_count * parallel_threshold)
+    if cpu_to_use == 0:
+        cpu_to_use = 1
+    debug("Parallel operations will use {0} CPUs".format(cpu_to_use))
+    #
+    extension_images = "jpg"  # Using jpg to avoid big temp files in pdf with a lot of pages
+    debug("Converting PDF to images...")
     if input_file_type == "application/pdf":
-        # Using jpg to avoid big temp files in pdf with a lot of pages
-        p = subprocess.Popen([path_pdftoppm, '-r', '300', '-jpeg', input_file, tmp_dir + prefix], shell=shell_mode)
-        p.wait()
+        parallel_page_ranges = calculate_ranges(input_file_number_of_pages, cpu_to_use)
+        if parallel_page_ranges is not None:
+            pdfimage_pool = multiprocessing.Pool(cpu_to_use)
+            pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(path_pdftoppm),
+                                                     parallel_page_ranges,
+                                                     itertools.repeat(input_file),
+                                                     itertools.repeat(tmp_dir + prefix),
+                                                     itertools.repeat(shell_mode)))
+        else:
+            # Without page info, only alternative is going sequentialy
+            p = subprocess.Popen([path_pdftoppm, '-r', '300', '-jpeg', input_file, tmp_dir + prefix], shell=shell_mode)
+            p.wait()
     else:
         if input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
             p = subprocess.Popen([path_convert, input_file, '-quality', '100', '-scene', '1',
@@ -437,14 +502,6 @@ Examples:
             eprint("{0} is not supported in this script. Exiting.".format(input_file_type))
             cleanup(delete_temps, tmp_dir, prefix)
             exit(1)
-            #
-    #
-    cpu_count = multiprocessing.cpu_count()
-    cpu_to_use = int(cpu_count * parallel_threshold)
-    if cpu_to_use == 0:
-        cpu_to_use = 1
-    debug("Parallel operations will use {0} CPUs".format(cpu_to_use))
-    #
     # Images to be processed
     image_file_list = find("{0}*.{1}".format(prefix, extension_images), tmp_dir)
     #
