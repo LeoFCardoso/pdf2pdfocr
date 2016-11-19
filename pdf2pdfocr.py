@@ -677,7 +677,16 @@ Examples:
     # TODO touch -r "$INPUT_FILE" "$OUTPUT_FILE"
     #
     cleanup(delete_temps, tmp_dir, prefix)
-    print("Success!")
+    #
+    paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
+    flattr_donate_link = "https://flattr.com/profile/pdf2pdfocr.devel"
+    success_message = """Success!
+This software is free, but if you like it, please donate to support new features.
+---> Paypal
+{0}
+---> Flattr
+{1}""".format(paypal_donate_link, flattr_donate_link)
+    print(success_message)
     exit(0)
     #
 # This is the end
