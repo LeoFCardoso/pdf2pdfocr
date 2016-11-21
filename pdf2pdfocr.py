@@ -37,14 +37,20 @@ __author__ = 'Leonardo F. Cardoso'
 
 
 def debug(param):
-    if verbose_mode:
-        tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        print("[{0}] [DEBUG]\t{1}".format(tstamp, param))
+    try:
+        if verbose_mode:
+            tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            print("[{0}] [DEBUG]\t{1}".format(tstamp, param))
+    except:
+        pass
 
 
 def log(param):
-    tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-    print("[{0}] [LOG]\t{1}".format(tstamp, param))
+    try:
+        tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        print("[{0}] [LOG]\t{1}".format(tstamp, param))
+    except:
+        pass
 
 
 def eprint(*args, **kwargs):
