@@ -42,6 +42,11 @@ def debug(param):
         print("[{0}] [DEBUG]\t{1}".format(tstamp, param))
 
 
+def log(param):
+    tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+    print("[{0}] [LOG]\t{1}".format(tstamp, param))
+
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -73,15 +78,26 @@ def cleanup(param_delete, param_tmp_dir, param_prefix):
         eprint("Temporary files kept in {0}".format(param_tmp_dir))
 
 
-def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_file_name, param_shell_mode):
+def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_tmp_dir, param_prefix,
+                  param_shell_mode):
     """
     Convert PDF to image file.
     Will be called from multiprocessing, so no global variables are allowed.
     """
-    first_page = param_page_range[0]
-    last_page = param_page_range[1]
-    pimage = subprocess.Popen([param_path_pdftoppm, '-f', str(first_page), '-l', str(last_page), '-r', '300',
-                               '-jpeg', param_input_file, param_file_name], shell=param_shell_mode)
+    command_line_list = [param_path_pdftoppm]
+    first_page = 0
+    last_page = 0
+    if param_page_range is not None:
+        first_page = param_page_range[0]
+        last_page = param_page_range[1]
+        command_line_list += ['-f', str(first_page), '-l', str(last_page)]
+    #
+    command_line_list += ['-r', '300', '-jpeg', param_input_file, param_tmp_dir + param_prefix]
+    pimage = subprocess.Popen(command_line_list, stdout=subprocess.DEVNULL,
+                              stderr=open(
+                                  param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(prefix, first_page, last_page),
+                                  "wb"),
+                              shell=param_shell_mode)
     pimage.wait()
 
 
@@ -380,8 +396,6 @@ Examples:
     debug("Temp dir is {0}".format(tmp_dir))
     debug("Prefix is {0}".format(prefix))
     #
-    input_file = args.input_file
-    #
     if use_pdftk:
         path_pdftk = shutil.which("pdftk")
         if path_pdftk is None:
@@ -389,11 +403,13 @@ Examples:
             cleanup(delete_temps, tmp_dir, prefix)
             exit(1)
     #
+    input_file = args.input_file
     if not os.path.isfile(input_file):
         eprint("{0} not found. Exiting.".format(input_file))
         cleanup(delete_temps, tmp_dir, prefix)
         exit(1)
-    #
+    # Use absolute path
+    input_file = os.path.abspath(input_file)
 
     input_file_type = ""
     # Using file call to get better compatibility with Windows (file is 32bit only)
@@ -402,7 +418,7 @@ Examples:
     pfile_output, pfile_errors = pfile.communicate()
     pfile.wait()
     input_file_type = pfile_output.decode("utf-8").strip()
-    debug("Input file {0}: type is {1}".format(input_file, input_file_type))
+    log("Input file {0}: type is {1}".format(input_file, input_file_type))
     #
     input_file_has_text = False
     input_file_is_encrypted = False
@@ -454,6 +470,7 @@ Examples:
         output_file = output_dir + os.path.sep + output_name_no_ext + "-OCR.pdf"
     #
     output_file_text = output_file + ".txt"
+    debug("Output file: {0} for PDF and {1} for TXT".format(output_file, output_file_text))
     #
     if (safe_mode and os.path.isfile(output_file)) or \
             (safe_mode and create_text_mode and os.path.isfile(output_file_text)):
@@ -480,7 +497,7 @@ Examples:
     debug("Parallel operations will use {0} CPUs".format(cpu_to_use))
     #
     extension_images = "jpg"  # Using jpg to avoid big temp files in pdf with a lot of pages
-    debug("Converting PDF to images...")
+    log("Converting PDF to images...")
     if input_file_type == "application/pdf":
         parallel_page_ranges = calculate_ranges(input_file_number_of_pages, cpu_to_use)
         if parallel_page_ranges is not None:
@@ -488,12 +505,12 @@ Examples:
             pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(path_pdftoppm),
                                                      parallel_page_ranges,
                                                      itertools.repeat(input_file),
-                                                     itertools.repeat(tmp_dir + prefix),
+                                                     itertools.repeat(tmp_dir),
+                                                     itertools.repeat(prefix),
                                                      itertools.repeat(shell_mode)))
         else:
-            # Without page info, only alternative is going sequentialy
-            p = subprocess.Popen([path_pdftoppm, '-r', '300', '-jpeg', input_file, tmp_dir + prefix], shell=shell_mode)
-            p.wait()
+            # Without page info, only alternative is going sequentialy (without range)
+            do_pdftoimage(path_pdftoppm, None, input_file, tmp_dir, prefix, shell_mode)
     else:
         if input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
             p = subprocess.Popen([path_convert, input_file, '-quality', '100', '-scene', '1',
@@ -517,7 +534,7 @@ Examples:
         #     do_deskew(...)
         #
     #
-    debug("Starting OCR...")
+    log("Starting OCR...")
     ocr_pool = multiprocessing.Pool(cpu_to_use)
     ocr_pool_map = ocr_pool.starmap_async(do_ocr,
                                           zip(image_file_list, itertools.repeat(tess_langs), itertools.repeat(tess_psm),
@@ -526,10 +543,10 @@ Examples:
                                               itertools.repeat(path_tesseract), itertools.repeat(path_this_python)))
     while not ocr_pool_map.ready():
         # TODO - how many *pages* remaining?
-        debug("Waiting for OCR to complete. {0} tasks remaining...".format(ocr_pool_map._number_left))
+        log("Waiting for OCR to complete. {0} tasks remaining...".format(ocr_pool_map._number_left))
         time.sleep(5)
     #
-    debug("OCR completed")
+    log("OCR completed")
     # Join PDF files into one file that contains all OCR "backgrounds"
     # Workaround for bug 72720 in older poppler releases
     # https://bugs.freedesktop.org/show_bug.cgi?id=72720
@@ -644,7 +661,7 @@ Examples:
             convert_params = preset_best
         #
         # http://stackoverflow.com/questions/79968/split-a-string-by-spaces-preserving-quoted-substrings-in-python
-        debug("Rebuild PDF from images")
+        log("Rebuilding PDF from images")
         convert_params_list = shlex.split(convert_params)
         prebuild = subprocess.Popen(
             [path_convert] + glob.glob(tmp_dir + prefix + "*." + extension_images) + convert_params_list + [
@@ -693,7 +710,7 @@ This software is free, but if you like it, please donate to support new features
 {0}
 ---> Flattr
 {1}""".format(paypal_donate_link, flattr_donate_link)
-    print(success_message)
+    log(success_message)
     exit(0)
     #
 # This is the end
