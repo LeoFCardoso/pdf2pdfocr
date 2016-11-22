@@ -101,7 +101,8 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
     command_line_list += ['-r', '300', '-jpeg', param_input_file, param_tmp_dir + param_prefix]
     pimage = subprocess.Popen(command_line_list, stdout=subprocess.DEVNULL,
                               stderr=open(
-                                  param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(prefix, first_page, last_page),
+                                  param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(param_prefix, first_page,
+                                                                                        last_page),
                                   "wb"),
                               shell=param_shell_mode)
     pimage.wait()
