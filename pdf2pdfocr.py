@@ -258,7 +258,6 @@ cmd_magick = "magick"  # used on Windows with ImageMagick 7+ (to avoid conversio
 cmd_mogrify = "mogrify"
 cmd_file = "file"
 cmd_pdftoppm = "pdftoppm"
-cmd_pdfunite = "pdfunite"
 cmd_ps2pdf = "ps2pdf"
 cmd_pdf2ps = "pdf2ps"
 # -------------
@@ -308,9 +307,8 @@ if __name__ == '__main__':
         exit(1)
     #
     path_pdftoppm = shutil.which(cmd_pdftoppm)
-    path_pdfunite = shutil.which(cmd_pdfunite)
-    if path_pdftoppm is None or path_pdfunite is None:
-        eprint("pdftoppm or pdfunite (poppler) not found. Aborting...")
+    if path_pdftoppm is None:
+        eprint("pdftoppm (poppler) not found. Aborting...")
         exit(1)
     #
     path_ps2pdf = shutil.which(cmd_ps2pdf)
@@ -561,12 +559,11 @@ Examples:
     text_pdf_file_list = find("{0}*.{1}".format(prefix, "pdf"), tmp_dir)
     debug("We have {0} ocr'ed files".format(len(text_pdf_file_list)))
     if len(text_pdf_file_list) > 1:
-        punite = subprocess.Popen(
-            [path_pdfunite] + sorted(glob.glob(tmp_dir + prefix + "*.pdf")) + [tmp_dir + prefix + "-ocr.pdf"],
-            stdout=subprocess.DEVNULL,
-            stderr=open(tmp_dir + "err_pdfunite-{0}-join.log".format(prefix), "wb"),
-            shell=shell_mode)
-        punite.wait()
+        pdf_merger = PyPDF2.PdfFileMerger()
+        for text_pdf_file in sorted(glob.glob(tmp_dir + prefix + "*.pdf")):
+            pdf_merger.append(PyPDF2.PdfFileReader(text_pdf_file, strict=False))
+        pdf_merger.write(tmp_dir + prefix + "-ocr.pdf")
+        pdf_merger.close()
     else:
         if len(text_pdf_file_list) == 1:
             shutil.copyfile(text_pdf_file_list[0], tmp_dir + prefix + "-ocr.pdf")
