@@ -520,8 +520,9 @@ Examples:
             do_pdftoimage(path_pdftoppm, None, input_file, tmp_dir, prefix, shell_mode)
     else:
         if input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
+            # %09d to format files for correct sort
             p = subprocess.Popen([path_convert, input_file, '-quality', '100', '-scene', '1',
-                                  tmp_dir + prefix + '-%d.' + extension_images], shell=shell_mode)
+                                  tmp_dir + prefix + '-%09d.' + extension_images], shell=shell_mode)
             p.wait()
         else:
             eprint("{0} is not supported in this script. Exiting.".format(input_file_type))
@@ -557,18 +558,18 @@ Examples:
     # Join PDF files into one file that contains all OCR "backgrounds"
     # Workaround for bug 72720 in older poppler releases
     # https://bugs.freedesktop.org/show_bug.cgi?id=72720
-    transp_pdf_file_list = find("{0}*.{1}".format(prefix, "pdf"), tmp_dir)
-    debug("We have {0} ocr'ed files".format(len(transp_pdf_file_list)))
-    if len(transp_pdf_file_list) > 1:
+    text_pdf_file_list = find("{0}*.{1}".format(prefix, "pdf"), tmp_dir)
+    debug("We have {0} ocr'ed files".format(len(text_pdf_file_list)))
+    if len(text_pdf_file_list) > 1:
         punite = subprocess.Popen(
-            [path_pdfunite] + glob.glob(tmp_dir + prefix + "*.pdf") + [tmp_dir + prefix + "-ocr.pdf"],
+            [path_pdfunite] + sorted(glob.glob(tmp_dir + prefix + "*.pdf")) + [tmp_dir + prefix + "-ocr.pdf"],
             stdout=subprocess.DEVNULL,
             stderr=open(tmp_dir + "err_pdfunite-{0}-join.log".format(prefix), "wb"),
             shell=shell_mode)
         punite.wait()
     else:
-        if len(transp_pdf_file_list) == 1:
-            shutil.copyfile(transp_pdf_file_list[0], tmp_dir + prefix + "-ocr.pdf")
+        if len(text_pdf_file_list) == 1:
+            shutil.copyfile(text_pdf_file_list[0], tmp_dir + prefix + "-ocr.pdf")
         else:
             eprint("No PDF files generated after OCR. This is not expected. Aborting.")
             cleanup(delete_temps, tmp_dir, prefix)
@@ -578,7 +579,7 @@ Examples:
     #
     # Create final text output
     if create_text_mode:
-        text_files = glob.glob(tmp_dir + prefix + "*.txt")
+        text_files = sorted(glob.glob(tmp_dir + prefix + "*.txt"))
         text_io_wrapper = open(output_file_text, 'w')
         with text_io_wrapper as outfile:
             for fname in text_files:
@@ -671,7 +672,7 @@ Examples:
         log("Rebuilding PDF from images")
         convert_params_list = shlex.split(convert_params)
         prebuild = subprocess.Popen(
-            [path_convert] + glob.glob(tmp_dir + prefix + "*." + extension_images) + convert_params_list + [
+            [path_convert] + sorted(glob.glob(tmp_dir + prefix + "*." + extension_images)) + convert_params_list + [
                 tmp_dir + prefix + "-input_unprotected.pdf"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
