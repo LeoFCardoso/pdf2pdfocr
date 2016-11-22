@@ -577,16 +577,15 @@ Examples:
     # Create final text output
     if create_text_mode:
         text_files = sorted(glob.glob(tmp_dir + prefix + "*.txt"))
-        text_io_wrapper = open(output_file_text, 'w')
+        text_io_wrapper = open(output_file_text, 'wb')
         with text_io_wrapper as outfile:
             for fname in text_files:
-                with open(fname) as infile:
-                    for line in infile:
-                        outfile.write(line)
+                with open(fname, 'rb') as infile:
+                    outfile.write(infile.read())
         #
         text_io_wrapper.close()
         #
-        debug("Created final text file")
+        log("Created final text file")
     #
     # Start building final PDF.
     # First, should we rebuild source file?
