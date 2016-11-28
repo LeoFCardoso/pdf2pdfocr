@@ -10,7 +10,7 @@
 # and this post: https://github.com/jbarlow83/OCRmyPDF/issues/8
 #
 # pip libraries dependencies: PyPDF2, reportlab
-# external tools dependencies: file, poppler, imagemagick, tesseract, ghostscript, pdftk (optional)
+# external tools dependencies: file, imagemagick, tesseract, ghostscript, pdftk (optional)
 ###############################################################################
 import argparse
 import datetime
@@ -84,25 +84,28 @@ def cleanup(param_delete, param_tmp_dir, param_prefix):
         eprint("Temporary files kept in {0}".format(param_tmp_dir))
 
 
-def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_tmp_dir, param_prefix,
-                  param_shell_mode):
+def do_pdftoimage_magick(param_path_convert, param_page_range, param_input_file, param_tmp_dir, param_prefix,
+                         param_extension_images, param_shell_mode):
     """
-    Convert PDF to image file.
+    Convert PDF to image file with imagemagick
     Will be called from multiprocessing, so no global variables are allowed.
     """
-    command_line_list = [param_path_pdftoppm]
-    first_page = 0
+    command_line_list = [param_path_convert]
+    first_page = 1
     last_page = 0
+    str_pages = ""  # no range
     if param_page_range is not None:
         first_page = param_page_range[0]
         last_page = param_page_range[1]
-        command_line_list += ['-f', str(first_page), '-l', str(last_page)]
+        str_pages = "[{0}-{1}]".format(first_page - 1, last_page - 1)  # Page 1 is index 0, and so on...
     #
-    command_line_list += ['-r', '300', '-jpeg', param_input_file, param_tmp_dir + param_prefix]
+    command_line_list += ['-alpha', 'remove', '-density', '300', param_input_file + str_pages, '-quality', '80',
+                          '-scene', str(first_page), '-depth', '300', '-units', 'pixelsperinch', '-colorspace', 'sRGB',
+                          '-type', 'truecolor', param_tmp_dir + param_prefix + '-%09d.' + param_extension_images]
     pimage = subprocess.Popen(command_line_list, stdout=subprocess.DEVNULL,
                               stderr=open(
-                                  param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(param_prefix, first_page,
-                                                                                        last_page),
+                                  param_tmp_dir + "pdftoimage_err_{0}-{1}-{2}.log".format(param_prefix, first_page,
+                                                                                          last_page),
                                   "wb"),
                               shell=param_shell_mode)
     pimage.wait()
@@ -231,7 +234,7 @@ def edit_producer(param_source_file, param_input_file_metadata, param_output_fil
 
 def calculate_ranges(input_file_number_of_pages, cpu_to_use):
     """
-    calculate ranges to run pdptoppm in parallel. Each CPU available will run well defined page range
+    calculate ranges to run pdftoimages in parallel. Each CPU available will run well defined page range
     :param input_file_number_of_pages:
     :param cpu_to_use:
     :return:
@@ -270,7 +273,6 @@ cmd_convert = "convert"
 cmd_magick = "magick"  # used on Windows with ImageMagick 7+ (to avoid conversion path problems)
 cmd_mogrify = "mogrify"
 cmd_file = "file"
-cmd_pdftoppm = "pdftoppm"
 cmd_ps2pdf = "ps2pdf"
 cmd_pdf2ps = "pdf2ps"
 # -------------
@@ -317,11 +319,6 @@ if __name__ == '__main__':
     path_file = shutil.which(cmd_file)
     if path_file is None:
         eprint("file not found. Aborting...")
-        exit(1)
-    #
-    path_pdftoppm = shutil.which(cmd_pdftoppm)
-    if path_pdftoppm is None:
-        eprint("pdftoppm (poppler) not found. Aborting...")
         exit(1)
     #
     path_ps2pdf = shutil.which(cmd_ps2pdf)
@@ -520,15 +517,16 @@ Examples:
         parallel_page_ranges = calculate_ranges(input_file_number_of_pages, cpu_to_use)
         if parallel_page_ranges is not None:
             pdfimage_pool = multiprocessing.Pool(cpu_to_use)
-            pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(path_pdftoppm),
-                                                     parallel_page_ranges,
-                                                     itertools.repeat(input_file),
-                                                     itertools.repeat(tmp_dir),
-                                                     itertools.repeat(prefix),
-                                                     itertools.repeat(shell_mode)))
+            pdfimage_pool.starmap(do_pdftoimage_magick, zip(itertools.repeat(path_convert),
+                                                            parallel_page_ranges,
+                                                            itertools.repeat(input_file),
+                                                            itertools.repeat(tmp_dir),
+                                                            itertools.repeat(prefix),
+                                                            itertools.repeat(extension_images),
+                                                            itertools.repeat(shell_mode)))
         else:
             # Without page info, only alternative is going sequentialy (without range)
-            do_pdftoimage(path_pdftoppm, None, input_file, tmp_dir, prefix, shell_mode)
+            do_pdftoimage_magick(path_convert, None, input_file, tmp_dir, prefix, extension_images, shell_mode)
     else:
         if input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
             # %09d to format files for correct sort
