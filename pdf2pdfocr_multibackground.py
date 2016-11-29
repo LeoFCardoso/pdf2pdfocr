@@ -46,6 +46,7 @@ for i in range(imagepdf.getNumPages()):
     # Handle rotation
     rotate_angle = imagepage.get('/Rotate')
     debug("Image page rotate angle is {0}".format(rotate_angle))
+    debug("Text page rotate angle is {0}".format(textpage.get('/Rotate')))
     if rotate_angle is None:
         rotate_angle = 0
     #

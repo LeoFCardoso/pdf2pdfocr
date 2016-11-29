@@ -231,7 +231,7 @@ def edit_producer(param_source_file, param_input_file_metadata, param_output_fil
 
 def calculate_ranges(input_file_number_of_pages, cpu_to_use):
     """
-    calculate ranges to run pdptoppm in parallel. Each CPU available will run well defined page range
+    calculate ranges to run pdftoppm in parallel. Each CPU available will run well defined page range
     :param input_file_number_of_pages:
     :param cpu_to_use:
     :return:
@@ -331,9 +331,10 @@ if __name__ == '__main__':
     #
 
     path_this_python = sys.executable
-
+    #
+    version = '1.0.1'
     # Arguments
-    parser = argparse.ArgumentParser(description='pdf2pdfocr.py version 1.0',
+    parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
     requiredNamed = parser.add_argument_group('required arguments')
     requiredNamed.add_argument("-i", dest="input_file", action="store", required=True,
@@ -428,7 +429,7 @@ Examples:
         exit(1)
     # Use absolute path
     input_file = os.path.abspath(input_file)
-
+    log("Welcome to pdf2pdfocr version {0}".format(version))
     input_file_type = ""
     # Using file call to get better compatibility with Windows (file is 32bit only)
     pfile = subprocess.Popen([path_file, '-b', '--mime-type', input_file], stdout=subprocess.PIPE,

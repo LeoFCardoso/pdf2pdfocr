@@ -84,13 +84,14 @@ For Each helpMessage In helpOut(0)
 	WScript.StdOut.WriteLine(helpMessage)
 Next
 WScript.StdOut.WriteLine("Please enter options.")
-WScript.StdOut.WriteLine("Use <Enter> for default [-s -t] or <.> for last used option [" & lastOptionUsed & "].")
+default_option = "-stp -j 0.9"
+WScript.StdOut.WriteLine("Use <Enter> for default [" & default_option & "] or <.> for last used option [" & lastOptionUsed & "].")
 WScript.StdOut.Write(">> ")
 WScript.StdIn.Read(0)
 options = WScript.StdIn.ReadLine()
 RewriteLastOptionFile = True
 if options = "" then
-	options = "-s -t"
+	options = default_option
 	RewriteLastOptionFile = False
 end if
 if options = "." then
@@ -106,7 +107,7 @@ end if
 set objArgs = WScript.Arguments 
 for i = 0 to objArgs.Count - 1 
 	WScript.Echo "Processing " & objArgs(i) & " ..."
-	scriptOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py " & options & " -j 0.9 -i """ & objArgs(i) & """")
+	scriptOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py " & options & " -i """ & objArgs(i) & """")
 	WScript.Echo " --> Output:"
 	For j = 0 to uBound(scriptOut(0))
 		message = scriptOut(0)(j)
