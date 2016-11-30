@@ -124,7 +124,6 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
     Will be called from multiprocessing, so no global variables are allowed.
     """
     # OCR to HOCR format
-    # TODO - learn to uniform font sizes (bounding box) in hocr
     # TODO - expert mode - let user pass tesseract custom parameters
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
     pocr = subprocess.Popen([param_path_tesseract, '-l', param_tess_lang,
@@ -259,6 +258,28 @@ def calculate_ranges(input_file_number_of_pages, cpu_to_use):
     return result
 
 
+# Based on https://gist.github.com/tiarno/8a2995e70cee42f01e79
+# -> find PDF font info with PyPDF2, example code
+def walk(obj, fnt, emb):
+    """
+    If there is a key called 'BaseFont', that is a font that is used in the document.
+    If there is a key called 'FontName' and another key in the same dictionary object
+    that is called 'FontFilex' (where x is null, 2, or 3), then that fontname is
+    embedded.
+    We create and add to two sets, fnt = fonts used and emb = fonts embedded.
+    """
+    if not hasattr(obj, 'keys'):
+        return None, None
+    fontkeys = {'/FontFile', '/FontFile2', '/FontFile3'}
+    if '/BaseFont' in obj:
+        fnt.add(obj['/BaseFont'])
+    if '/FontName' in obj:
+        if [x for x in fontkeys if x in obj]:  # test to see if there is FontFile
+            emb.add(obj['/FontName'])
+    for k in obj.keys():
+        walk(obj[k], fnt, emb)
+    return fnt, emb  # return the sets for each page
+
 # -------------
 # MAIN
 # -------------
@@ -332,7 +353,7 @@ if __name__ == '__main__':
 
     path_this_python = sys.executable
     #
-    version = '1.0.1'
+    version = '1.0.2'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -457,10 +478,17 @@ Examples:
             input_file_metadata = pdfReader.documentInfo
         text_check_failed = False
         try:
+            fonts = set()
+            embedded = set()
             for pageObj in pdfReader.pages:
                 try:
-                    if pageObj.extractText() != "":
+                    # Test fonts for page
+                    f, e = walk(pageObj['/Resources'], fonts, embedded)
+                    fonts = fonts.union(f)
+                    embedded = embedded.union(e)
+                    if (pageObj.extractText() != "") or (len(fonts.union(embedded)) != 0):
                         input_file_has_text = True
+                        break
                 except TypeError:
                     text_check_failed = True
         except PyPDF2.utils.PdfReadError:
