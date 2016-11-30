@@ -465,8 +465,14 @@ Examples:
     input_file_metadata = dict()
     input_file_number_of_pages = None
     if input_file_type == "application/pdf":
-        pdfFileObj = open(input_file, 'rb')  # read binary
-        pdfReader = PyPDF2.PdfFileReader(pdfFileObj, strict=False)
+        try:
+            pdfFileObj = open(input_file, 'rb')  # read binary
+            pdfReader = PyPDF2.PdfFileReader(pdfFileObj, strict=False)
+        except PyPDF2.utils.PdfReadError:
+            eprint("Corrupted PDF file detected. Aborting...")
+            cleanup(delete_temps, tmp_dir, prefix)
+            exit(1)
+        #
         try:
             input_file_number_of_pages = pdfReader.getNumPages()
         except Exception:

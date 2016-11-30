@@ -1,6 +1,6 @@
 .idea/*
 .parallel/*
-testDocs/*
+testDocs*/*
 PDF2PDFOCR_Windows_Software/*
 teste.sh
 test.py
