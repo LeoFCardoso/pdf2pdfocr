@@ -353,7 +353,7 @@ if __name__ == '__main__':
 
     path_this_python = sys.executable
     #
-    version = '1.0.2'
+    version = '1.0.3'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -590,8 +590,8 @@ Examples:
                                               itertools.repeat(shell_mode),
                                               itertools.repeat(path_tesseract), itertools.repeat(path_this_python)))
     while not ocr_pool_map.ready():
-        # TODO - how many *pages* remaining?
-        log("Waiting for OCR to complete. {0} tasks remaining...".format(ocr_pool_map._number_left))
+        pages_processed = len(glob.glob(tmp_dir + prefix + "*.tmp"))
+        log("Waiting for OCR to complete. {0} pages completed...".format(pages_processed))
         time.sleep(5)
     #
     log("OCR completed")
