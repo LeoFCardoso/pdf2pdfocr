@@ -123,7 +123,6 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
     Do OCR of image.
     Will be called from multiprocessing, so no global variables are allowed.
     """
-    # OCR to HOCR format
     # TODO - expert mode - let user pass tesseract custom parameters
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
     pocr = subprocess.Popen([param_path_tesseract, '-l', param_tess_lang,
@@ -280,41 +279,10 @@ def walk(obj, fnt, emb):
         walk(obj[k], fnt, emb)
     return fnt, emb  # return the sets for each page
 
-# -------------
-# MAIN
-# -------------
 
-# -------------
-# External tools command. If you can't edit your path, adjust here to match your system
-cmd_tesseract = "tesseract"
-cmd_convert = "convert"
-cmd_magick = "magick"  # used on Windows with ImageMagick 7+ (to avoid conversion path problems)
-cmd_mogrify = "mogrify"
-cmd_file = "file"
-cmd_pdftoppm = "pdftoppm"
-cmd_ps2pdf = "ps2pdf"
-cmd_pdf2ps = "pdf2ps"
-# -------------
-
-# https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
-# See "Safe importing of main module"
-if __name__ == '__main__':
-    multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-
-    # How to run external process? In Windows use Shell=True
-    # http://stackoverflow.com/questions/5658622/python-subprocess-popen-environment-path
-    # "Also, on Windows with shell=False, it pays no attention to PATH at all,
-    # and will only look in relative to the current working directory."
-    shell_mode = False
-    if os.name == 'nt':
-        shell_mode = True
-    # Temp dir
-    tmp_dir = tempfile.gettempdir() + os.path.sep
-    #
-    # A random prefix to support multiple execution in parallel
-    prefix = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))
-    #
+def check_external_tools():
     # Check if external tools are available, aborting in case of any error.
+    global path_tesseract, path_convert, path_mogrify, path_file, path_pdftoppm, path_ps2pdf, path_pdf2ps
     path_tesseract = shutil.which(cmd_tesseract)
     if path_tesseract is None:
         eprint("tesseract not found. Aborting...")
@@ -351,9 +319,45 @@ if __name__ == '__main__':
         eprint("ps2pdf or pdf2ps (ghostscript) not found. File repair will not work...")
     #
 
+# -------------
+# MAIN
+# -------------
+
+# -------------
+# External tools command. If you can't edit your path, adjust here to match your system
+cmd_tesseract = "tesseract"
+cmd_convert = "convert"
+cmd_magick = "magick"  # used on Windows with ImageMagick 7+ (to avoid conversion path problems)
+cmd_mogrify = "mogrify"
+cmd_file = "file"
+cmd_pdftoppm = "pdftoppm"
+cmd_ps2pdf = "ps2pdf"
+cmd_pdf2ps = "pdf2ps"
+# -------------
+
+# https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
+# See "Safe importing of main module"
+if __name__ == '__main__':
+    multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
+
+    # How to run external process? In Windows use Shell=True
+    # http://stackoverflow.com/questions/5658622/python-subprocess-popen-environment-path
+    # "Also, on Windows with shell=False, it pays no attention to PATH at all,
+    # and will only look in relative to the current working directory."
+    shell_mode = False
+    if os.name == 'nt':
+        shell_mode = True
+    # Temp dir
+    tmp_dir = tempfile.gettempdir() + os.path.sep
+    #
+    # A random prefix to support multiple execution in parallel
+    prefix = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))
+    #
+    check_external_tools()
+    #
     path_this_python = sys.executable
     #
-    version = '1.0.3'
+    version = '1.0.4'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -450,9 +454,9 @@ Examples:
         exit(1)
     # Use absolute path
     input_file = os.path.abspath(input_file)
-    log("Welcome to pdf2pdfocr version {0}".format(version))
     input_file_type = ""
-    # Using file call to get better compatibility with Windows (file is 32bit only)
+    log("Welcome to pdf2pdfocr version {0}".format(version))
+    # Detect mime type of input file
     pfile = subprocess.Popen([path_file, '-b', '--mime-type', input_file], stdout=subprocess.PIPE,
                              stderr=subprocess.DEVNULL, shell=shell_mode)
     pfile_output, pfile_errors = pfile.communicate()
@@ -466,7 +470,7 @@ Examples:
     input_file_number_of_pages = None
     if input_file_type == "application/pdf":
         try:
-            pdfFileObj = open(input_file, 'rb')  # read binary
+            pdfFileObj = open(input_file, 'rb')
             pdfReader = PyPDF2.PdfFileReader(pdfFileObj, strict=False)
         except PyPDF2.utils.PdfReadError:
             eprint("Corrupted PDF file detected. Aborting...")
@@ -512,7 +516,6 @@ Examples:
         eprint("{0} is encrypted PDF and check encryption mode is enabled. Exiting.".format(input_file))
         cleanup(delete_temps, tmp_dir, prefix)
         exit(1)
-    #
     # This is the output file
     output_file = ""
     if force_out_mode:
@@ -533,12 +536,10 @@ Examples:
             eprint("{0} already exists and safe mode is enabled. Exiting.".format(output_file_text))
         cleanup(delete_temps, tmp_dir, prefix)
         exit(1)
-    #
     # Initial cleanup
     best_effort_remove(output_file)
     if create_text_mode:
         best_effort_remove(output_file_text)
-    #
     # Where am I?
     script_dir = os.path.dirname(os.path.abspath(__file__)) + os.path.sep
     debug("Script dir is {0}".format(script_dir))
@@ -621,7 +622,6 @@ Examples:
             exit(1)
     #
     debug("Joined ocr'ed PDF files")
-    #
     # Create final text output
     if create_text_mode:
         text_files = sorted(glob.glob(tmp_dir + prefix + "*.txt"))
@@ -634,7 +634,6 @@ Examples:
         text_io_wrapper.close()
         #
         log("Created final text file")
-    #
     # Start building final PDF.
     # First, should we rebuild source file?
     rebuild_pdf_from_images = False
