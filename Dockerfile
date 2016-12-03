@@ -22,9 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3-reportlab \
   python3-setuptools\
   tesseract-ocr \
-#  tesseract-ocr-all
   tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
-  
+#  tesseract-ocr-all
+
 # Complete python install
 RUN pip3 install --upgrade pip \
   && pip3 install --upgrade pypdf2
