@@ -582,7 +582,7 @@ This software is free, but if you like it, please donate to support new features
                     f, e = Pdf2PdfOcr.walk(pageObj['/Resources'], fonts, embedded)
                     fonts = fonts.union(f)
                     embedded = embedded.union(e)
-                    if (pageObj.extractText() != "") or (len(fonts.union(embedded)) != 0):
+                    if len(fonts.union(embedded)) != 0:
                         self.input_file_has_text = True
                         break
                 except TypeError:
