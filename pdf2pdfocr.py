@@ -572,12 +572,13 @@ This software is free, but if you like it, please donate to support new features
         self.input_file_is_encrypted = pdfReader.isEncrypted
         if not self.input_file_is_encrypted:
             self.input_file_metadata = pdfReader.documentInfo
-        text_check_failed = False
-        try:
-            fonts = set()
-            embedded = set()
-            for pageObj in pdfReader.pages:
-                try:
+        #
+        if self.check_text_mode:
+            text_check_failed = False
+            try:
+                fonts = set()
+                embedded = set()
+                for pageObj in pdfReader.pages:
                     # Test fonts for page
                     f, e = Pdf2PdfOcr.walk(pageObj['/Resources'], fonts, embedded)
                     fonts = fonts.union(f)
@@ -585,13 +586,11 @@ This software is free, but if you like it, please donate to support new features
                     if len(fonts.union(embedded)) != 0:
                         self.input_file_has_text = True
                         break
-                except TypeError:
-                    text_check_failed = True
-        except PyPDF2.utils.PdfReadError:
-            text_check_failed = True
-        #
-        if self.check_text_mode and text_check_failed and not self.input_file_has_text:
-            eprint("Warning: fail to check for text in input file. Assuming no text, but this can be wrong")
+            except:
+                text_check_failed = True
+            #
+            if text_check_failed and not self.input_file_has_text:
+                eprint("Warning: fail to check for text in input file. Assuming no text, but this can be wrong")
         #
         if self.input_file_type == "application/pdf" and self.check_text_mode and self.input_file_has_text:
             eprint("{0} already has text and check text mode is enabled. Exiting.".format(self.input_file))
