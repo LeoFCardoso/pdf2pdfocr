@@ -115,7 +115,7 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
     # Try to save some temp space as tesseract generate PDF with same size of image
     if param_delete_temps:
         os.remove(pdf_file_tmp)
-        Path(pdf_file_tmp).touch()
+        Path(pdf_file_tmp).touch()  # .tmp files are used to track overall progress
 
 
 def percentual_float(x):
@@ -743,7 +743,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.0.5'
+    version = '1.0.6'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
