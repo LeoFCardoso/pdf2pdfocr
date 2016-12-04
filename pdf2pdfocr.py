@@ -29,6 +29,8 @@ import sys
 import tempfile
 import time
 
+from pathlib import Path
+
 import PyPDF2
 
 ####
@@ -72,7 +74,8 @@ def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mo
     pd.wait()
 
 
-def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract):
+def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
+           param_delete_temps):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do OCR of image.
@@ -109,6 +112,10 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
     with open(pdf_file, 'wb') as f:
         output_pdf.write(f)
     desc_pdf_file_tmp.close()
+    # Try to save some temp space as tesseract generate PDF with same size of image
+    if param_delete_temps:
+        os.remove(pdf_file_tmp)
+        Path(pdf_file_tmp).touch()
 
 
 def percentual_float(x):
@@ -119,7 +126,6 @@ def percentual_float(x):
 
 
 class Pdf2PdfOcr:
-
     # External tools command. If you can't edit your path, adjust here to match your system
     cmd_tesseract = "tesseract"
     path_tesseract = ""
@@ -292,7 +298,9 @@ class Pdf2PdfOcr:
         self.define_output_files()
         self.initial_cleanup()
         self.convert_input_to_images()
-        image_file_list = sorted(glob.glob(self.tmp_dir+"{0}*.{1}".format(self.prefix, self.extension_images)))
+        image_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, self.extension_images)))
+        if self.input_file_number_of_pages is None:
+            self.input_file_number_of_pages = len(image_file_list)
         self.deskew(image_file_list)
         self.external_ocr(image_file_list)
         self.join_ocred_pdf()
@@ -374,7 +382,6 @@ This software is free, but if you like it, please donate to support new features
         preset_jpeg = "-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG"
         preset_jpeg2000 = "-quality 32% -compress JPEG2000"
         #
-        convert_params = ""
         if self.user_convert_params == "fast":
             convert_params = preset_fast
         elif self.user_convert_params == "best":
@@ -483,10 +490,12 @@ This software is free, but if you like it, please donate to support new features
                                               zip(image_file_list, itertools.repeat(self.tess_langs),
                                                   itertools.repeat(self.tess_psm), itertools.repeat(self.tmp_dir),
                                                   itertools.repeat(self.shell_mode),
-                                                  itertools.repeat(self.path_tesseract)))
+                                                  itertools.repeat(self.path_tesseract),
+                                                  itertools.repeat(self.delete_temps)))
         while not ocr_pool_map.ready():
             pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.tmp"))
-            self.log("Waiting for OCR to complete. {0} pages completed...".format(pages_processed))
+            self.log("Waiting for OCR to complete. {0}/{1} pages completed...".format(pages_processed,
+                                                                                      self.input_file_number_of_pages))
             time.sleep(5)
         #
         self.log("OCR completed")
@@ -500,7 +509,7 @@ This software is free, but if you like it, please donate to support new features
             # Sequential code below
             # for image_file in deskew_file_list:
             #     do_deskew(...)
-        #
+            #
 
     def convert_input_to_images(self):
         self.log("Converting input file to images...")
@@ -556,29 +565,29 @@ This software is free, but if you like it, please donate to support new features
 
     def validate_pdf_input_file(self):
         try:
-            pdfFileObj = open(self.input_file, 'rb')
-            pdfReader = PyPDF2.PdfFileReader(pdfFileObj, strict=False)
+            pdf_file_obj = open(self.input_file, 'rb')
+            pdf_reader = PyPDF2.PdfFileReader(pdf_file_obj, strict=False)
         except PyPDF2.utils.PdfReadError:
             eprint("Corrupted PDF file detected. Aborting...")
             self.cleanup()
             exit(1)
         #
         try:
-            self.input_file_number_of_pages = pdfReader.getNumPages()
+            self.input_file_number_of_pages = pdf_reader.getNumPages()
         except Exception:
             eprint("Warning: could not read input file number of pages.")
-            self.input_file_number_of_pages = None
+            self.input_file_number_of_pages = None  # Will be calculated later
         #
-        self.input_file_is_encrypted = pdfReader.isEncrypted
+        self.input_file_is_encrypted = pdf_reader.isEncrypted
         if not self.input_file_is_encrypted:
-            self.input_file_metadata = pdfReader.documentInfo
+            self.input_file_metadata = pdf_reader.documentInfo
         #
         if self.check_text_mode:
             text_check_failed = False
             try:
                 fonts = set()
                 embedded = set()
-                for pageObj in pdfReader.pages:
+                for pageObj in pdf_reader.pages:
                     # Test fonts for page
                     f, e = Pdf2PdfOcr.walk(pageObj['/Resources'], fonts, embedded)
                     fonts = fonts.union(f)
@@ -620,7 +629,7 @@ This software is free, but if you like it, please donate to support new features
         test_image = self.tmp_dir + "converttest-" + self.prefix + ".jpg"
         ptest = subprocess.Popen([self.path_convert, 'rose:', test_image], stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, shell=self.shell_mode)
-        streamdata = ptest.communicate()[0]
+        ptest.communicate()[0]
         ptest.wait()
         return_code = ptest.returncode
         if return_code == 0:
@@ -678,7 +687,7 @@ This software is free, but if you like it, please donate to support new features
                 #
                 try:
                     # Check if value can be accepted by pypdf API
-                    test_conversion = PyPDF2.generic.createStringObject(value)
+                    PyPDF2.generic.createStringObject(value)
                     info_dict_output[key] = value
                 except TypeError:
                     # This can happen with some array properties.
