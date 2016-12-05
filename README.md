@@ -13,19 +13,31 @@ This software is free, but if you like it, please donate to support new features
 In Linux, installation is straightforward. Just install required packages and be happy.
 You can use "install_command" script to copy required files to "/usr/local/bin".
 
-In OSX, you will need macports. Install macports, and run:
+In macOS, you will need macports. Install macports, and run:
     
     xcode-select --install
+    sudo xcodebuild -license
+    # install correct macports from https://www.macports.org/install.php
     sudo port selfupdate
-    sudo port install git tesseract tesseract-por tesseract-osd tesseract-eng python34 py34-reportlab py34-pip poppler poppler-data parallel ImageMagick wget pdftk
-    sudo pip-3.4 install pypdf2
-    # for versions < OSX 10.11
-    wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.6-setup.pkg
-    # for OSX 10.11 (http://stackoverflow.com/questions/32505951/pdftk-server-on-os-x-10-11)
-    wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.11-setup.pkg
-    # Install pdftk pkg manually
+    # install tesseract (Portuguese included - please setup for your preferred languages)
+    sudo port install git tesseract tesseract-por tesseract-osd tesseract-eng
+    # install python 3 and other dependencies
+    sudo port install python34 py34-pip poppler poppler-data ImageMagick wget 
+    # configure default python3 installer
+    sudo port select --set python3 python34
+    sudo port select --set pip pip34
+    # install libs (ignore warning messages)
+    sudo pip install reportlab
+    sudo pip install pypdf2
+    # install pdftk (may fail on newer macos)
+    sudo port install pdftk
+    # if fail, please install pdftk manually
+    # for versions <  macOS 10.11
+      wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.6-setup.pkg
+    # for versions >= macOS 10.11 (http://stackoverflow.com/questions/32505951/pdftk-server-on-os-x-10-11)
+      wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.11-setup.pkg
 
-Note, wget and pdftk are optional. Macports version of pdftk won't build in OSX 10.11. So you have to install it manually with above commands.
+Note, wget and pdftk are optional. Macports version of pdftk won't build in macOS 10.11 and above. So you have to install it manually with above commands.
 
 In Windows, you will need to manually install required software.
 Please read the document "Installing Windows tools for pdf2pdfocr" for a simple tutorial. It's also possible to use "Send To" menu using the "pdf2pdfocr.vbs" script.
