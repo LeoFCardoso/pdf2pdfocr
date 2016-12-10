@@ -41,8 +41,8 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_tmp_dir, param_prefix,
-                  param_shell_mode):
+def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_image_resolution, param_tmp_dir,
+                  param_prefix, param_shell_mode):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Convert PDF to image file.
@@ -55,7 +55,7 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
         last_page = param_page_range[1]
         command_line_list += ['-f', str(first_page), '-l', str(last_page)]
     #
-    command_line_list += ['-r', '300', '-jpeg', param_input_file, param_tmp_dir + param_prefix]
+    command_line_list += ['-r', str(param_image_resolution), '-jpeg', param_input_file, param_tmp_dir + param_prefix]
     pimage = subprocess.Popen(command_line_list, stdout=subprocess.DEVNULL,
                               stderr=open(
                                   param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(param_prefix, first_page,
@@ -198,6 +198,7 @@ class Pdf2PdfOcr:
         self.tess_psm = args.tess_psm
         if self.tess_psm is None:
             self.tess_psm = "1"  # Default
+        self.image_resolution = args.image_resolution
         self.delete_temps = not args.keep_temps
         self.verbose_mode = args.verbose_mode
         self.input_file = args.input_file
@@ -521,12 +522,14 @@ This software is free, but if you like it, please donate to support new features
                 pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
                                                          parallel_page_ranges,
                                                          itertools.repeat(self.input_file),
+                                                         itertools.repeat(self.image_resolution),
                                                          itertools.repeat(self.tmp_dir),
                                                          itertools.repeat(self.prefix),
                                                          itertools.repeat(self.shell_mode)))
             else:
                 # Without page info, only alternative is going sequentialy (without range)
-                do_pdftoimage(self.path_pdftoppm, None, self.input_file, self.tmp_dir, self.prefix, self.shell_mode)
+                do_pdftoimage(self.path_pdftoppm, None, self.input_file, self.image_resolution, self.tmp_dir,
+                              self.prefix, self.shell_mode)
         else:
             if self.input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
                 # %09d to format files for correct sort
@@ -743,7 +746,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.0.6'
+    version = '1.0.7'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -783,6 +786,9 @@ Examples:
     parser.add_argument("-p", dest="use_pdftk", action="store_true", default=False,
                         help="force the use of pdftk tool to do the final overlay of files "
                              "(if not rebuild from images)")
+    parser.add_argument("-r", dest="image_resolution", action="store", default=300, type=int,
+                        help="specify image resolution in DPI before OCR operation - lower is faster, higher "
+                             "improves OCR quality (default is for quality = 300)")
     parser.add_argument("-l", dest="tess_langs", action="store", required=False,
                         help="force tesseract to use specific languages (default: por+eng)")
     parser.add_argument("-m", dest="tess_psm", action="store", required=False,
