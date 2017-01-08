@@ -36,7 +36,6 @@ from pathlib import Path
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.units import inch
 from xml.etree import ElementTree
-from PIL import Image
 from collections import namedtuple
 
 import PyPDF2
@@ -935,7 +934,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.0.8'
+    version = '1.0.9'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -959,7 +958,7 @@ Examples:
     -g grayscale -> good bitonal file from grayscale documents ("-threshold 85%% -morphology Dilate Diamond -compress Group4")
     -g jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50%% -compress JPEG")
     -g jpeg2000 -> keep original color image as JPEG2000 ("-quality 32%% -compress JPEG2000")
-    -g "-threshold 60%% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE QUOTATION MARKS)
+    -g="-threshold 60%% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE EQUAL SIGN AND QUOTATION MARKS)
     Note, without -g, preset 'best' is used"""
     parser.add_argument("-g", dest="convert_params", action="store", default="",
                         help=option_g_help)
