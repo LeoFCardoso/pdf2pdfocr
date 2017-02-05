@@ -13,10 +13,12 @@
 # external tools dependencies: file, poppler, imagemagick, tesseract, ghostscript, pdftk (optional)
 ###############################################################################
 import argparse
+import configparser
 import datetime
 import errno
 import glob
 import itertools
+import io
 import math
 import multiprocessing
 import os
@@ -70,6 +72,44 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
                                   "wb"),
                               shell=param_shell_mode)
     pimage.wait()
+
+
+def do_autorotate(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract,
+                  param_path_mogrify):
+    """
+    Will be called from multiprocessing, so no global variables are allowed.
+    Do autorotate of images based on tesseract (execution with '-psm 0') information.
+    """
+    param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
+    tess_command_line = [param_path_tesseract, '-l', param_tess_lang, '-psm', '0', param_image_file,
+                         param_temp_dir + param_image_no_ext]
+    ptess1 = subprocess.Popen(tess_command_line,
+                              stdout=open(param_temp_dir + "autorot_tess_out_{0}.log".format(param_image_no_ext), "wb"),
+                              stderr=open(param_temp_dir + "autorot_tess_err_{0}.log".format(param_image_no_ext), "wb"),
+                              shell=param_shell_mode)
+    ptess1.wait()
+    # Generates "param_temp_dir + param_image_no_ext.osd" text file
+    if ptess1.returncode == 0:
+        osd_information_file = param_temp_dir + param_image_no_ext + ".osd"
+        with open(osd_information_file, 'r') as f:
+            osd_information_string = '[root]\n' + f.read()   # A dummy section to satisfy ConfigParser
+        f.close()
+        config_osd = configparser.ConfigParser()
+        config_osd.read_file(io.StringIO(osd_information_string))
+        rotate_value = config_osd.getint('root', 'Rotate')  # or 'Orientation in degrees'?
+        if rotate_value != 0:
+            mogrify_command_line = [param_path_mogrify, '-rotate', str(rotate_value), param_image_file]
+            pmog1 = subprocess.Popen(mogrify_command_line,
+                                     stdout=open(
+                                         param_temp_dir + "autorot_mogrify_out_{0}.log".format(param_image_no_ext),
+                                         "wb"),
+                                     stderr=open(
+                                         param_temp_dir + "autorot_mogrify_err_{0}.log".format(param_image_no_ext),
+                                         "wb"),
+                                     shell=param_shell_mode)
+            pmog1.wait()
+        #
+    #
 
 
 def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mogrify):
@@ -366,6 +406,7 @@ class Pdf2PdfOcr:
             self.user_convert_params = ""  # Default
         self.deskew_threshold = args.deskew_percent
         self.use_deskew_mode = args.deskew_percent is not None
+        self.use_autorotate = args.autorotate
         self.parallel_threshold = args.parallel_percent
         if self.parallel_threshold is None:
             self.parallel_threshold = 1  # Default
@@ -489,6 +530,7 @@ class Pdf2PdfOcr:
         image_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, self.extension_images)))
         if self.input_file_number_of_pages is None:
             self.input_file_number_of_pages = len(image_file_list)
+        self.autorotate(image_file_list)
         self.deskew(image_file_list)
         self.external_ocr(image_file_list)
         self.join_ocred_pdf()
@@ -525,7 +567,8 @@ This software is free, but if you like it, please donate to support new features
         # Start building final PDF.
         # First, should we rebuild source file?
         rebuild_pdf_from_images = False
-        if self.input_file_is_encrypted or self.input_file_type != "application/pdf" or self.use_deskew_mode:
+        if self.input_file_is_encrypted or self.input_file_type != "application/pdf" or self.use_deskew_mode \
+                or self.use_autorotate:
             rebuild_pdf_from_images = True
         #
         if (not rebuild_pdf_from_images) and (not self.force_rebuild_mode):
@@ -561,7 +604,7 @@ This software is free, but if you like it, please donate to support new features
 
     def rebuild_and_merge(self):
         eprint("Warning: metadata wiped from final PDF file (original file is not an unprotected PDF / "
-               "forcing rebuild from extracted images / using deskew)")
+               "forcing rebuild from extracted images / using deskew or autorotate)")
         # Convert presets
         # Please read http://www.imagemagick.org/Usage/quantize/#colors_two
         preset_fast = "-threshold 60% -compress Group4"
@@ -688,6 +731,17 @@ This software is free, but if you like it, please donate to support new features
             time.sleep(5)
         #
         self.log("OCR completed")
+
+    def autorotate(self, image_file_list):
+        if self.use_autorotate:
+            self.debug("Applying autorotate (will rebuild final PDF file)")
+            autorotate_pool = multiprocessing.Pool(self.cpu_to_use)
+            autorotate_pool.starmap(do_autorotate, zip(image_file_list,
+                                                       itertools.repeat(self.shell_mode),
+                                                       itertools.repeat(self.tmp_dir),
+                                                       itertools.repeat(self.tess_langs),
+                                                       itertools.repeat(self.path_tesseract),
+                                                       itertools.repeat(self.path_mogrify)))
 
     def deskew(self, image_file_list):
         if self.use_deskew_mode:
@@ -934,7 +988,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.0.9'
+    version = '1.1.0'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -964,6 +1018,8 @@ Examples:
                         help=option_g_help)
     parser.add_argument("-d", dest="deskew_percent", action="store",
                         help="use imagemagick deskew *before* OCR. <DESKEW_PERCENT> should be a percent, e.g. '40%%'")
+    parser.add_argument("-u", dest="autorotate", action="store_true", default= False,
+                        help="try to autorotate pages using tesseract '-psm 0' feature")
     parser.add_argument("-j", dest="parallel_percent", action="store", type=percentual_float,
                         help="run this percentual jobs in parallel (0 - 1.0] - multiply with the number of CPU cores"
                              " (default = 1 [all cores])")
