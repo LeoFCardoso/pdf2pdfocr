@@ -24,6 +24,7 @@ import multiprocessing
 import os
 import random
 import re
+import signal
 import shlex
 import shutil
 import string
@@ -515,7 +516,7 @@ class Pdf2PdfOcr:
         if self.delete_temps:
             # All with PREFIX on temp files
             for f in glob.glob(self.tmp_dir + "*" + self.prefix + "*.*"):
-                os.remove(f)
+                Pdf2PdfOcr.best_effort_remove(f)
         else:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
@@ -536,6 +537,9 @@ class Pdf2PdfOcr:
         self.join_ocred_pdf()
         self.create_text_output()
         self.build_final_output()
+        # TODO - create directory watch mode (maybe using watchdog library)
+        # Like a daemon
+        #
         # TODO - create option for PDF/A files
         # gs -dPDFA=3 -dBATCH -dNOPAUSE -sProcessColorModel=DeviceCMYK -sDEVICE=pdfwrite
         # -sPDFACompatibilityPolicy=2 -sOutputFile=output_filename.pdf ./Test.pdf
@@ -760,7 +764,7 @@ This software is free, but if you like it, please donate to support new features
             parallel_page_ranges = self.calculate_ranges()
             if parallel_page_ranges is not None:
                 pdfimage_pool = multiprocessing.Pool(self.cpu_to_use)
-                # TODO - try to use function inside this class
+                # TODO - try to use method inside this class (encapsulate do_pdftoimage)
                 pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
                                                          parallel_page_ranges,
                                                          itertools.repeat(self.input_file),
@@ -988,7 +992,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.0'
+    version = '1.1.1'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -1048,6 +1052,14 @@ Examples:
     args = parser.parse_args()
     #
     pdf2ocr = Pdf2PdfOcr(args)
+    # Signal handling
+
+    def sigint_handler(*args):
+        pdf2ocr.cleanup()
+        exit(1)
+    #
+    signal.signal(signal.SIGINT, sigint_handler)
+    #
     pdf2ocr.ocr()
     #
     exit(0)
