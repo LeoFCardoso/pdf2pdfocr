@@ -75,8 +75,7 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
     pimage.wait()
 
 
-def do_autorotate(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract,
-                  param_path_mogrify):
+def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do autorotate of images based on tesseract (execution with '-psm 0') information.
@@ -89,28 +88,6 @@ def do_autorotate(param_image_file, param_shell_mode, param_temp_dir, param_tess
                               stderr=open(param_temp_dir + "autorot_tess_err_{0}.log".format(param_image_no_ext), "wb"),
                               shell=param_shell_mode)
     ptess1.wait()
-    # Generates "param_temp_dir + param_image_no_ext.osd" text file
-    if ptess1.returncode == 0:
-        osd_information_file = param_temp_dir + param_image_no_ext + ".osd"
-        with open(osd_information_file, 'r') as f:
-            osd_information_string = '[root]\n' + f.read()   # A dummy section to satisfy ConfigParser
-        f.close()
-        config_osd = configparser.ConfigParser()
-        config_osd.read_file(io.StringIO(osd_information_string))
-        rotate_value = config_osd.getint('root', 'Rotate')  # or 'Orientation in degrees'?
-        if rotate_value != 0:
-            mogrify_command_line = [param_path_mogrify, '-rotate', str(rotate_value), param_image_file]
-            pmog1 = subprocess.Popen(mogrify_command_line,
-                                     stdout=open(
-                                         param_temp_dir + "autorot_mogrify_out_{0}.log".format(param_image_no_ext),
-                                         "wb"),
-                                     stderr=open(
-                                         param_temp_dir + "autorot_mogrify_err_{0}.log".format(param_image_no_ext),
-                                         "wb"),
-                                     shell=param_shell_mode)
-            pmog1.wait()
-        #
-    #
 
 
 def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mogrify):
@@ -531,12 +508,14 @@ class Pdf2PdfOcr:
         image_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, self.extension_images)))
         if self.input_file_number_of_pages is None:
             self.input_file_number_of_pages = len(image_file_list)
-        self.autorotate(image_file_list)
+        self.autorotate_info(image_file_list)
         self.deskew(image_file_list)
         self.external_ocr(image_file_list)
         self.join_ocred_pdf()
         self.create_text_output()
         self.build_final_output()
+        self.autorotate_final_output()
+        #
         # TODO - create directory watch mode (maybe using watchdog library)
         # Like a daemon
         #
@@ -571,8 +550,7 @@ This software is free, but if you like it, please donate to support new features
         # Start building final PDF.
         # First, should we rebuild source file?
         rebuild_pdf_from_images = False
-        if self.input_file_is_encrypted or self.input_file_type != "application/pdf" or self.use_deskew_mode \
-                or self.use_autorotate:
+        if self.input_file_is_encrypted or self.input_file_type != "application/pdf" or self.use_deskew_mode:
             rebuild_pdf_from_images = True
         #
         if (not rebuild_pdf_from_images) and (not self.force_rebuild_mode):
@@ -608,7 +586,7 @@ This software is free, but if you like it, please donate to support new features
 
     def rebuild_and_merge(self):
         eprint("Warning: metadata wiped from final PDF file (original file is not an unprotected PDF / "
-               "forcing rebuild from extracted images / using deskew or autorotate)")
+               "forcing rebuild from extracted images / using deskew)")
         # Convert presets
         # Please read http://www.imagemagick.org/Usage/quantize/#colors_two
         preset_fast = "-threshold 60% -compress Group4"
@@ -736,16 +714,51 @@ This software is free, but if you like it, please donate to support new features
         #
         self.log("OCR completed")
 
-    def autorotate(self, image_file_list):
+    def autorotate_info(self, image_file_list):
         if self.use_autorotate:
-            self.debug("Applying autorotate (will rebuild final PDF file)")
+            self.debug("Calculating autorotate values...")
             autorotate_pool = multiprocessing.Pool(self.cpu_to_use)
-            autorotate_pool.starmap(do_autorotate, zip(image_file_list,
-                                                       itertools.repeat(self.shell_mode),
-                                                       itertools.repeat(self.tmp_dir),
-                                                       itertools.repeat(self.tess_langs),
-                                                       itertools.repeat(self.path_tesseract),
-                                                       itertools.repeat(self.path_mogrify)))
+            autorotate_pool.starmap(do_autorotate_info, zip(image_file_list,
+                                                            itertools.repeat(self.shell_mode),
+                                                            itertools.repeat(self.tmp_dir),
+                                                            itertools.repeat(self.tess_langs),
+                                                            itertools.repeat(self.path_tesseract)))
+
+    def autorotate_final_output(self):
+        param_source_file = self.tmp_dir + self.prefix + "-OUTPUT.pdf"
+        param_dest_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
+        if self.use_autorotate:
+            self.debug("Autorotate final output")
+            file_source = open(param_source_file, 'rb')
+            pre_output_pdf = PyPDF2.PdfFileReader(file_source, strict=False)
+            final_output_pdf = PyPDF2.PdfFileWriter()
+            # "autorotate_info" generated these OSD files
+            list_osd = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "osd")))
+            rotation_angles = []
+            for osd_information_file in list_osd:
+                with open(osd_information_file, 'r') as f:
+                    osd_information_string = '[root]\n' + f.read()   # A dummy section to satisfy ConfigParser
+                f.close()
+                config_osd = configparser.ConfigParser()
+                config_osd.read_file(io.StringIO(osd_information_string))
+                rotate_value = config_osd.getint('root', 'Rotate')
+                rotation_angles.append(rotate_value)
+            #
+            for i in range(pre_output_pdf.getNumPages()):
+                page = pre_output_pdf.getPage(i)
+                page.rotateClockwise(rotation_angles[i])
+                final_output_pdf.addPage(page)
+            #
+            with open(param_dest_file, 'wb') as f:
+                final_output_pdf.write(f)
+                f.close()
+            #
+            file_source.close()
+        else:
+            # No autorotate, just rename the file for next method
+            os.rename(param_source_file, param_dest_file)
+        #
+    #
 
     def deskew(self, image_file_list):
         if self.use_deskew_mode:
@@ -915,7 +928,7 @@ This software is free, but if you like it, please donate to support new features
 
     def edit_producer(self):
         self.debug("Editing producer")
-        param_source_file = self.tmp_dir + self.prefix + "-OUTPUT.pdf"
+        param_source_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
         file_source = open(param_source_file, 'rb')
         pre_output_pdf = PyPDF2.PdfFileReader(file_source, strict=False)
         final_output_pdf = PyPDF2.PdfFileWriter()
@@ -992,7 +1005,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.1'
+    version = '1.1.2'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
