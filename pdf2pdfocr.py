@@ -727,21 +727,34 @@ This software is free, but if you like it, please donate to support new features
     def autorotate_final_output(self):
         param_source_file = self.tmp_dir + self.prefix + "-OUTPUT.pdf"
         param_dest_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
-        if self.use_autorotate:
+        # method "autorotate_info" generated these OSD files
+        list_osd = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "osd")))
+        skip_autorotate = False
+        if self.use_autorotate and (len(list_osd) != self.input_file_number_of_pages):
+            eprint("Skipping autorotation because OSD files were not correctly generated. Check input file and "
+                   "tesseract logs")
+            skip_autorotate = True
+        #
+        if self.use_autorotate and not skip_autorotate:
             self.debug("Autorotate final output")
             file_source = open(param_source_file, 'rb')
             pre_output_pdf = PyPDF2.PdfFileReader(file_source, strict=False)
             final_output_pdf = PyPDF2.PdfFileWriter()
-            # "autorotate_info" generated these OSD files
-            list_osd = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "osd")))
             rotation_angles = []
+            osd_page_num = 0
             for osd_information_file in list_osd:
                 with open(osd_information_file, 'r') as f:
-                    osd_information_string = '[root]\n' + f.read()   # A dummy section to satisfy ConfigParser
+                    osd_information_string = '[root]\n' + f.read()  # A dummy section to satisfy ConfigParser
                 f.close()
+                osd_page_num += 1
                 config_osd = configparser.ConfigParser()
                 config_osd.read_file(io.StringIO(osd_information_string))
-                rotate_value = config_osd.getint('root', 'Rotate')
+                try:
+                    rotate_value = config_osd.getint('root', 'Rotate')
+                except configparser.NoOptionError:
+                    eprint("Error reading rotate page value from page {0}. Assuming zero as rotation angle.".format(
+                        osd_page_num))
+                    rotate_value = 0
                 rotation_angles.append(rotate_value)
             #
             for i in range(pre_output_pdf.getNumPages()):
@@ -755,7 +768,7 @@ This software is free, but if you like it, please donate to support new features
             #
             file_source.close()
         else:
-            # No autorotate, just rename the file for next method
+            # No autorotate, just rename the file to next method process correctly
             os.rename(param_source_file, param_dest_file)
         #
     #
@@ -1005,7 +1018,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.2'
+    version = '1.1.3'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
