@@ -508,6 +508,7 @@ class Pdf2PdfOcr:
         image_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, self.extension_images)))
         if self.input_file_number_of_pages is None:
             self.input_file_number_of_pages = len(image_file_list)
+        # TODO - create param to user pass image filters before OCR
         self.autorotate_info(image_file_list)
         self.deskew(image_file_list)
         self.external_ocr(image_file_list)
@@ -1018,7 +1019,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.3'
+    version = '1.1.4'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -1074,6 +1075,9 @@ Examples:
                         help="keep temporary files for debug")
     parser.add_argument("-v", dest="verbose_mode", action="store_true", default=False,
                         help="enable verbose mode")
+    parser.add_argument("-P", dest="pause_end_mode", action="store_true", default=False,
+                        help="with successful execution, wait for user to press <Enter> at the final of the "
+                             "script (default: not wait)")
     #
     args = parser.parse_args()
     #
@@ -1087,6 +1091,9 @@ Examples:
     signal.signal(signal.SIGINT, sigint_handler)
     #
     pdf2ocr.ocr()
+    #
+    if args.pause_end_mode:
+        input("Press <Enter> to continue...")
     #
     exit(0)
     #
