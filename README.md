@@ -9,6 +9,8 @@ This software is free, but if you like it, please donate to support new features
 
 [![flattr](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?fid=pojqg0&url=https%3A%2F%2Fgithub.com%2FLeoFCardoso%2Fpdf2pdfocr)
 
+Bitcoin address: 3LDKfgNmT17UjDjENfE5svEeUJ8LBPSfq6
+
 # installation
 In Linux, installation is straightforward. Just install required packages and be happy.
 You can use "install_command" script to copy required files to "/usr/local/bin".
