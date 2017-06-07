@@ -539,7 +539,7 @@ class Pdf2PdfOcr:
         #
         paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
         flattr_donate_link = "https://flattr.com/profile/pdf2pdfocr.devel"
-        bitcoin_address = "3LDKfgNmT17UjDjENfE5svEeUJ8LBPSfq6"
+        bitcoin_address = "1HqVASKmkGG69UZjRRNVC6E9w4xoehejdr"
         success_message = """Success!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
@@ -1022,7 +1022,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.5'
+    version = '1.1.5.1'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
