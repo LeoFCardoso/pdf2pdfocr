@@ -341,6 +341,8 @@ class Pdf2PdfOcr:
     path_pdftk = ""
     cmd_pdftoppm = "pdftoppm"
     path_pdftoppm = ""
+    cmd_pdffonts = "pdffonts"
+    path_pdffonts = ""
     cmd_ps2pdf = "ps2pdf"
     path_ps2pdf = ""
     cmd_pdf2ps = "pdf2ps"
@@ -467,6 +469,11 @@ class Pdf2PdfOcr:
         self.path_pdftoppm = shutil.which(self.cmd_pdftoppm)
         if self.path_pdftoppm is None:
             eprint("pdftoppm (poppler) not found. Aborting...")
+            exit(1)
+        #
+        self.path_pdffonts = shutil.which(self.cmd_pdffonts)
+        if self.path_pdffonts is None:
+            eprint("pdffonts (poppler) not found. Aborting...")
             exit(1)
         #
         self.path_ps2pdf = shutil.which(self.cmd_ps2pdf)
@@ -862,23 +869,7 @@ This software is free, but if you like it, please donate to support new features
             self.input_file_metadata = pdf_reader.documentInfo
         #
         if self.check_text_mode:
-            text_check_failed = False
-            try:
-                fonts = set()
-                embedded = set()
-                for pageObj in pdf_reader.pages:
-                    # Test fonts for page
-                    f, e = Pdf2PdfOcr.walk(pageObj['/Resources'], fonts, embedded)
-                    fonts = fonts.union(f)
-                    embedded = embedded.union(e)
-                    if len(fonts.union(embedded)) != 0:
-                        self.input_file_has_text = True
-                        break
-            except:
-                text_check_failed = True
-            #
-            if text_check_failed and not self.input_file_has_text:
-                eprint("Warning: fail to check for text in input file. Assuming no text, but this can be wrong")
+            self.input_file_has_text = self.check_for_text()
         #
         if self.input_file_type == "application/pdf" and self.check_text_mode and self.input_file_has_text:
             eprint("{0} already has text and check text mode is enabled. Exiting.".format(self.input_file))
@@ -889,6 +880,21 @@ This software is free, but if you like it, please donate to support new features
             eprint("{0} is encrypted PDF and check encryption mode is enabled. Exiting.".format(self.input_file))
             self.cleanup()
             exit(1)
+
+    def check_for_text(self):
+        """Check if input file contains text. Actually based on pdffonts from poppler"""
+        ptext = subprocess.Popen([self.path_pdffonts, self.input_file], stdout=subprocess.PIPE,
+                                 stderr=subprocess.DEVNULL, shell=self.shell_mode)
+        ptext_output, ptext_errors = ptext.communicate()
+        ptext.wait()
+        pdffonts_text_output_lines = ptext_output.decode("utf-8").strip().splitlines()
+        # Return without fonts has exactly 2 header lines.
+        # All return with more than 2 lines should mean we have some font (text) in the file.
+        if len(pdffonts_text_output_lines) > 2:
+            return True
+        else:
+            return False
+    #
 
     def detect_file_type(self):
         """Detect mime type of input file"""
@@ -983,29 +989,6 @@ This software is free, but if you like it, please donate to support new features
         #
         file_source.close()
 
-    # Based on https://gist.github.com/tiarno/8a2995e70cee42f01e79
-    # -> find PDF font info with PyPDF2, example code
-    @staticmethod
-    def walk(obj, fnt, emb):
-        """
-        If there is a key called 'BaseFont', that is a font that is used in the document.
-        If there is a key called 'FontName' and another key in the same dictionary object
-        that is called 'FontFilex' (where x is null, 2, or 3), then that fontname is
-        embedded.
-        We create and add to two sets, fnt = fonts used and emb = fonts embedded.
-        """
-        if not hasattr(obj, 'keys'):
-            return None, None
-        fontkeys = {'/FontFile', '/FontFile2', '/FontFile3'}
-        if '/BaseFont' in obj:
-            fnt.add(obj['/BaseFont'])
-        if '/FontName' in obj:
-            if [x for x in fontkeys if x in obj]:  # test to see if there is FontFile
-                emb.add(obj['/FontName'])
-        for k in obj.keys():
-            Pdf2PdfOcr.walk(obj[k], fnt, emb)
-        return fnt, emb  # return the sets for each page
-
     @staticmethod
     def best_effort_remove(filename):
         try:
@@ -1022,7 +1005,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.5.1'
+    version = '1.1.6'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
