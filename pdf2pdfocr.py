@@ -380,6 +380,8 @@ class Pdf2PdfOcr:
         self.safe_mode = args.safe_mode
         self.check_text_mode = args.check_text_mode
         self.check_protection_mode = args.check_protection_mode
+        self.avoid_high_pages_mode = args.max_pages is not None
+        self.avoid_high_pages_pages = args.max_pages
         self.force_rebuild_mode = args.force_rebuild_mode
         self.user_convert_params = args.convert_params
         if self.user_convert_params is None:
@@ -515,6 +517,7 @@ class Pdf2PdfOcr:
         image_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, self.extension_images)))
         if self.input_file_number_of_pages is None:
             self.input_file_number_of_pages = len(image_file_list)
+        self.check_avoid_high_pages()
         # TODO - create param to user pass image filters before OCR
         self.autorotate_info(image_file_list)
         self.deskew(image_file_list)
@@ -862,7 +865,9 @@ This software is free, but if you like it, please donate to support new features
             self.input_file_number_of_pages = pdf_reader.getNumPages()
         except Exception:
             eprint("Warning: could not read input file number of pages.")
-            self.input_file_number_of_pages = None  # Will be calculated later
+            self.input_file_number_of_pages = None  # Will be calculated later based on number of image files to process
+        #
+        self.check_avoid_high_pages()
         #
         self.input_file_is_encrypted = pdf_reader.isEncrypted
         if not self.input_file_is_encrypted:
@@ -878,6 +883,14 @@ This software is free, but if you like it, please donate to support new features
         #
         if self.input_file_type == "application/pdf" and self.check_protection_mode and self.input_file_is_encrypted:
             eprint("{0} is encrypted PDF and check encryption mode is enabled. Exiting.".format(self.input_file))
+            self.cleanup()
+            exit(1)
+
+    def check_avoid_high_pages(self):
+        if self.input_file_number_of_pages is not None and self.avoid_high_pages_mode \
+                and self.input_file_number_of_pages > self.avoid_high_pages_pages:
+            eprint("Input file has {0} pages and maximum for process in avoid high number of pages mode (-b) is {1}. "
+                   "Exiting.".format(self.input_file_number_of_pages, self.avoid_high_pages_pages))
             self.cleanup()
             exit(1)
 
@@ -1005,7 +1018,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.1.6'
+    version = '1.2.0'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -1019,6 +1032,9 @@ if __name__ == '__main__':
                         help="check text mode. Does not process if source PDF already has text")
     parser.add_argument("-a", dest="check_protection_mode", action="store_true", default=False,
                         help="check encryption mode. Does not process if source PDF is protected")
+    parser.add_argument("-b", dest="max_pages", action="store", default=None, type=int,
+                        help="avoid high number of pages mode. Does not process if number of pages is greater "
+                             "than <MAX_PAGES>")
     parser.add_argument("-f", dest="force_rebuild_mode", action="store_true", default=False,
                         help="force PDF rebuild from extracted images")
     # Escape % wiht %%
