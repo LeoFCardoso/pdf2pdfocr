@@ -550,14 +550,20 @@ class Pdf2PdfOcr:
         paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
         flattr_donate_link = "https://flattr.com/profile/pdf2pdfocr.devel"
         bitcoin_address = "1HqVASKmkGG69UZjRRNVC6E9w4xoehejdr"
+        ethereum_address = "0x94a0e2e4eac8406e81806a152593e492824adb95"
+        litecoin_address = "LRJ9LpuJ3UyUKKdzjZrG6gk3s6Ajau8Uwx"
+        dogecoin_address = "D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG"
         success_message = """Success!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
 {0}
 ---> Flattr
 {1}
----> Bitcoin address
-{2}""".format(paypal_donate_link, flattr_donate_link, bitcoin_address)
+---> Bitcoin (BTC) address: {2}
+---> Ethereum (ETH) address: {3}
+---> Litecoin (LTC) address: {4}
+---> Dogecoin (DOGE) address: {5}""".format(paypal_donate_link, flattr_donate_link, bitcoin_address, ethereum_address, litecoin_address,
+              dogecoin_address)
         self.log(success_message)
 
     def build_final_output(self):
@@ -1018,7 +1024,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.2.0'
+    version = '1.2.1'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)

@@ -9,7 +9,13 @@ This software is free, but if you like it, please donate to support new features
 
 [![flattr](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?fid=pojqg0&url=https%3A%2F%2Fgithub.com%2FLeoFCardoso%2Fpdf2pdfocr)
 
-Bitcoin address: 1HqVASKmkGG69UZjRRNVC6E9w4xoehejdr
+Bitcoin (BTC) address: 1HqVASKmkGG69UZjRRNVC6E9w4xoehejdr
+
+Ethereum (ETH) address: 0x94a0e2e4eac8406e81806a152593e492824adb95
+
+Litecoin (LTC) address: LRJ9LpuJ3UyUKKdzjZrG6gk3s6Ajau8Uwx
+
+Dogecoin (DOGE) address: D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG
 
 # installation
 In Linux, installation is straightforward. Just install required packages and be happy.
