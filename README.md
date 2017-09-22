@@ -15,7 +15,7 @@ Ethereum (ETH) address: 0x94a0e2e4eac8406e81806a152593e492824adb95
 
 Litecoin (LTC) address: LRJ9LpuJ3UyUKKdzjZrG6gk3s6Ajau8Uwx
 
-Dogecoin (DOGE) address: D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG
+Dogecoin (DOGE) address: DHGCa8e6t3QKewBmeDNcAh15wA2T8Tw7FR
 
 # installation
 In Linux, installation is straightforward. Just install required packages and be happy.
