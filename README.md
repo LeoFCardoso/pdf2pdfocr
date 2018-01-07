@@ -9,13 +9,15 @@ This software is free, but if you like it, please donate to support new features
 
 [![flattr](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?fid=pojqg0&url=https%3A%2F%2Fgithub.com%2FLeoFCardoso%2Fpdf2pdfocr)
 
-Bitcoin (BTC) address: 1HqVASKmkGG69UZjRRNVC6E9w4xoehejdr
+Bitcoin (BTC) address: 173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ
 
 Ethereum (ETH) address: 0x94a0e2e4eac8406e81806a152593e492824adb95
 
-Litecoin (LTC) address: LRJ9LpuJ3UyUKKdzjZrG6gk3s6Ajau8Uwx
+Litecoin (LTC) address: LT63cQRUZ8YgZZB5nVogEqQR91oUjHv9hN
 
-Dogecoin (DOGE) address: DHGCa8e6t3QKewBmeDNcAh15wA2T8Tw7FR
+Dogecoin (DOGE) address: DBNdvUptuZYMt7gb9HavCQovdsoxQzP6i6
+
+Niobio Cash (NBR - http://niobio.money) address: N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr
 
 # installation
 In Linux, installation is straightforward. Just install required packages and be happy.

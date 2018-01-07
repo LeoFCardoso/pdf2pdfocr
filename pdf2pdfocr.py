@@ -172,6 +172,7 @@ class HocrTransform:
 
     Adapted from https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
     """
+
     def __init__(self, hocr_file_name, dpi):
         self.rect = namedtuple('Rect', ['x1', 'y1', 'x2', 'y2'])
         self.dpi = dpi
@@ -323,7 +324,7 @@ class HocrTransform:
         # finish up the page and save it
         pdf.showPage()
         pdf.save()
-    #
+        #
 
 
 class Pdf2PdfOcr:
@@ -547,12 +548,14 @@ class Pdf2PdfOcr:
         #
         self.cleanup()
         #
-        paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
+        paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name" \
+                             "=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
         flattr_donate_link = "https://flattr.com/profile/pdf2pdfocr.devel"
-        bitcoin_address = "1HqVASKmkGG69UZjRRNVC6E9w4xoehejdr"
+        bitcoin_address = "173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ"
         ethereum_address = "0x94a0e2e4eac8406e81806a152593e492824adb95"
-        litecoin_address = "LRJ9LpuJ3UyUKKdzjZrG6gk3s6Ajau8Uwx"
-        dogecoin_address = "DHGCa8e6t3QKewBmeDNcAh15wA2T8Tw7FR"
+        litecoin_address = "LT63cQRUZ8YgZZB5nVogEqQR91oUjHv9hN"
+        dogecoin_address = "DBNdvUptuZYMt7gb9HavCQovdsoxQzP6i6"
+        nbr_address = "N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr"
         success_message = """Success!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
@@ -562,8 +565,9 @@ This software is free, but if you like it, please donate to support new features
 ---> Bitcoin (BTC) address: {2}
 ---> Ethereum (ETH) address: {3}
 ---> Litecoin (LTC) address: {4}
----> Dogecoin (DOGE) address: {5}""".format(paypal_donate_link, flattr_donate_link, bitcoin_address, ethereum_address,
-                                            litecoin_address, dogecoin_address)
+---> Dogecoin (DOGE) address: {5}
+---> Niobio Cash (NBR) address: {6}""".format(paypal_donate_link, flattr_donate_link, bitcoin_address, ethereum_address,
+                                              litecoin_address, dogecoin_address, nbr_address)
         self.log(success_message)
 
     def build_final_output(self):
@@ -790,7 +794,8 @@ This software is free, but if you like it, please donate to support new features
         else:
             # No autorotate, just rename the file to next method process correctly
             os.rename(param_source_file, param_dest_file)
-        #
+            #
+
     #
 
     def deskew(self, image_file_list):
@@ -913,6 +918,7 @@ This software is free, but if you like it, please donate to support new features
             return True
         else:
             return False
+
     #
 
     def detect_file_type(self):
@@ -1024,7 +1030,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.2.2'
+    version = '1.2.3'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -1057,7 +1063,7 @@ Examples:
                         help=option_g_help)
     parser.add_argument("-d", dest="deskew_percent", action="store",
                         help="use imagemagick deskew *before* OCR. <DESKEW_PERCENT> should be a percent, e.g. '40%%'")
-    parser.add_argument("-u", dest="autorotate", action="store_true", default= False,
+    parser.add_argument("-u", dest="autorotate", action="store_true", default=False,
                         help="try to autorotate pages using tesseract '-psm 0' feature")
     parser.add_argument("-j", dest="parallel_percent", action="store", type=percentual_float,
                         help="run this percentual jobs in parallel (0 - 1.0] - multiply with the number of CPU cores"
@@ -1090,11 +1096,14 @@ Examples:
     args = parser.parse_args()
     #
     pdf2ocr = Pdf2PdfOcr(args)
-    # Signal handling
 
+
+    # Signal handling
     def sigint_handler(*args):
         pdf2ocr.cleanup()
         exit(1)
+
+
     #
     signal.signal(signal.SIGINT, sigint_handler)
     #
