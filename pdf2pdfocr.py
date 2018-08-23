@@ -942,7 +942,7 @@ This software is free, but if you like it, please donate to support new features
         ptest.communicate()[0]
         ptest.wait()
         return_code = ptest.returncode
-        if return_code == 0:
+        if (return_code == 0) and (os.path.isfile(test_image)):
             Pdf2PdfOcr.best_effort_remove(test_image)
             result = True
         return result
@@ -1030,7 +1030,7 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.2.3'
+    version = '1.2.4'
     # Arguments
     parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
                                      formatter_class=argparse.RawTextHelpFormatter)
