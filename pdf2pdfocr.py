@@ -187,7 +187,7 @@ class HocrTransform:
         # get dimension in pt (not pixel!!!!) of the OCRed image
         self.width, self.height = None, None
         for div in self.hocr.findall(
-                        ".//%sdiv[@class='ocr_page']" % (self.xmlns)):
+                ".//%sdiv[@class='ocr_page']" % (self.xmlns)):
             coords = self.element_coordinates(div)
             pt_coords = self.pt_from_pixel(coords)
             self.width = pt_coords.x2 - pt_coords.x1
@@ -275,7 +275,7 @@ class HocrTransform:
         pdf.setFillColorRGB(0, 1, 1)
         pdf.setLineWidth(0)  # no line for bounding box
         for elem in self.hocr.findall(
-                        ".//%sp[@class='%s']" % (self.xmlns, "ocr_par")):
+                ".//%sp[@class='%s']" % (self.xmlns, "ocr_par")):
             elemtxt = self._get_element_text(elem).rstrip()
             if len(elemtxt) == 0:
                 continue
@@ -508,7 +508,7 @@ class Pdf2PdfOcr:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
     def ocr(self):
-        self.log("Welcome to pdf2pdfocr version {0}".format(version))
+        self.log("Welcome to pdf2pdfocr version {0} - https://github.com/LeoFCardoso/pdf2pdfocr".format(version))
         self.detect_file_type()
         if self.input_file_type == "application/pdf":
             self.validate_pdf_input_file()
@@ -550,11 +550,8 @@ class Pdf2PdfOcr:
         #
         paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name" \
                              "=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
-        flattr_donate_link = "https://flattr.com/profile/pdf2pdfocr.devel"
+        flattr_donate_link = "https://flattr.com/@pdf2pdfocr.devel"
         bitcoin_address = "173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ"
-        ethereum_address = "0x94a0e2e4eac8406e81806a152593e492824adb95"
-        litecoin_address = "LT63cQRUZ8YgZZB5nVogEqQR91oUjHv9hN"
-        dogecoin_address = "DBNdvUptuZYMt7gb9HavCQovdsoxQzP6i6"
         nbr_address = "N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr"
         success_message = """Success!
 This software is free, but if you like it, please donate to support new features.
@@ -563,11 +560,10 @@ This software is free, but if you like it, please donate to support new features
 ---> Flattr
 {1}
 ---> Bitcoin (BTC) address: {2}
----> Ethereum (ETH) address: {3}
----> Litecoin (LTC) address: {4}
----> Dogecoin (DOGE) address: {5}
----> Niobio Cash (NBR) address: {6}""".format(paypal_donate_link, flattr_donate_link, bitcoin_address, ethereum_address,
-                                              litecoin_address, dogecoin_address, nbr_address)
+---> Niobio Cash (NBR) address: {3}
+---> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(paypal_donate_link,
+                                                                                                                  flattr_donate_link, bitcoin_address,
+                                                                                                                  nbr_address)
         self.log(success_message)
 
     def build_final_output(self):
@@ -1030,10 +1026,11 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.2.4'
+    version = '1.2.5'
     # Arguments
-    parser = argparse.ArgumentParser(description=('pdf2pdfocr.py version %s (http://semver.org/lang/pt-BR/)' % version),
-                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=('pdf2pdfocr.py [https://github.com/LeoFCardoso/pdf2pdfocr] version %s (http://semver.org/lang/pt-BR/)' % version),
+        formatter_class=argparse.RawTextHelpFormatter)
     requiredNamed = parser.add_argument_group('required arguments')
     requiredNamed.add_argument("-i", dest="input_file", action="store", required=True,
                                help="path for input file")

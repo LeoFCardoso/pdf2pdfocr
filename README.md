@@ -11,35 +11,32 @@ This software is free, but if you like it, please donate to support new features
 
 Bitcoin (BTC) address: 173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ
 
-Ethereum (ETH) address: 0x94a0e2e4eac8406e81806a152593e492824adb95
+Niobio Cash (NBR - https://niobiocash.org) address: N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr
 
-Litecoin (LTC) address: LT63cQRUZ8YgZZB5nVogEqQR91oUjHv9hN
-
-Dogecoin (DOGE) address: DBNdvUptuZYMt7gb9HavCQovdsoxQzP6i6
-
-Niobio Cash (NBR - http://niobio.money) address: N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr
+Please contact for donations in other cryptocurrencies.
 
 # installation
 In Linux, installation is straightforward. Just install required packages and be happy.
 You can use "install_command" script to copy required files to "/usr/local/bin".
 
-In macOS, you will need macports. Install macports, and run:
+In macOS, you will need macports.
     
+    # First install Xcode from Mac App Store, then:
     xcode-select --install
     sudo xcodebuild -license
-    # install correct macports from https://www.macports.org/install.php
+    # Install Macports from https://www.macports.org/install.php
     sudo port selfupdate
-    # install tesseract (Portuguese included - please setup for your preferred languages)
-    sudo port install git tesseract tesseract-por tesseract-osd tesseract-eng
-    # install python 3 and other dependencies
-    sudo port install python34 py34-pip poppler poppler-data ImageMagick wget 
-    # configure default python3 installer
-    sudo port select --set python3 python34
-    sudo port select --set pip pip34
-    # install libs (ignore warning messages)
+    # Install tesseract (Portuguese included below - please add your preferred languages)
+    sudo port install git libtool automake autoconf tesseract tesseract-por tesseract-osd tesseract-eng
+    # Install python 3 and other dependencies
+    sudo port install python37 py37-pip poppler poppler-data ImageMagick wget ghostscript
+    # Configure default python3 installer
+    sudo port select --set python3 python37
+    sudo port select --set pip pip37
+    # Install libs (please ignore warning messages)
     sudo pip install reportlab
-    sudo pip install pypdf2
-    # install pdftk (may fail on newer macos)
+    sudo pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
+    # Install pdftk (may fail eventually with macports)
     sudo port install pdftk
     # if fail, please install pdftk manually
     # for versions <  macOS 10.11
@@ -47,12 +44,12 @@ In macOS, you will need macports. Install macports, and run:
     # for versions >= macOS 10.11 (http://stackoverflow.com/questions/32505951/pdftk-server-on-os-x-10-11)
       wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.11-setup.pkg
 
-Note, wget and pdftk are optional. Macports version of pdftk won't build in macOS 10.11 and above. So you have to install it manually with above commands.
+Note, wget and pdftk are optional. If macports version of pdftk fail to install, you have to install it manually with above command (or never use "-p" flag).
 
-In Windows, you will need to manually install required software.
-Please read the document "Installing Windows tools for pdf2pdfocr" for a simple tutorial. It's also possible to use "Send To" menu using the "pdf2pdfocr.vbs" script.
+In Windows, you will need to manually install required software. Please read "install_windows.txt" file and try the tutorial with scoop tool. It's easy! :-)
+
 # docker
-The Dockerfile can be used to build a docker image to run pdf2pdfocr inside a container. To build the image, please download all sourcers and run.
+The Dockerfile can be used to build a docker image to run pdf2pdfocr inside a container. To build the image, please download all sources and run.
 
     docker build -t leofcardoso/pdf2pdfocr:latest .
 It's also possible to pull the docker image from docker hub.

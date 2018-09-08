@@ -1,8 +1,8 @@
 # pdf2pdfocr
 #
-# Dockerfile version 2.0 - Alpine linux
+# Dockerfile version 3.0 - Alpine linux
 #
-FROM alpine:3.5
+FROM alpine:3.8
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
 
 RUN addgroup docker \
@@ -13,7 +13,7 @@ RUN addgroup docker \
 RUN apk add --no-cache python3 \
  && python3 -m ensurepip \
  && pip3 install --upgrade pip setuptools \
- && pip3 install --upgrade pypdf2
+ && pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
 
 RUN apk add --no-cache build-base linux-headers python3-dev zlib-dev jpeg-dev
 
@@ -31,22 +31,9 @@ RUN apk add --no-cache poppler-utils
 RUN apk add --no-cache tesseract-ocr
 RUN apk add --no-cache wget ca-certificates
 RUN \
-    # english
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.bigrams && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.bigrams && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.fold && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.lm && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.nn && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.params && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.size && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.cube.word-freq && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.tesseract_cube.nn && \
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/eng.traineddata && \
-    # portuguese
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/por.traineddata && \
-    # osd - hocr option
-    wget -q -P /usr/share/tessdata/ https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/osd.traineddata
-    # please download more languages if you need.
+    # portuguese (please download more languages if you need) - tesseract branch 3.04 and 3.05
+    wget -q -P /usr/share/tessdata/ "https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/por.traineddata"
+
 RUN tesseract --list-langs    # just a test
 RUN apk add --no-cache file
 RUN apk add --no-cache bash
