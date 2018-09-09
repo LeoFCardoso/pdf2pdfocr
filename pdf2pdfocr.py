@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##############################################################################
-# Copyright (c) 2016: Leonardo Cardoso
+# Copyright (c) 2018: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
@@ -17,38 +17,36 @@ import configparser
 import datetime
 import errno
 import glob
-import itertools
 import io
+import itertools
 import math
 import multiprocessing
 import os
 import random
 import re
-import signal
 import shlex
 import shutil
+import signal
 import string
 import subprocess
 import sys
 import tempfile
 import time
-
-from pathlib import Path
-
-# Class HocrTransform
-from reportlab.pdfgen.canvas import Canvas
-from reportlab.lib.units import inch
-from xml.etree import ElementTree
 from collections import namedtuple
+from pathlib import Path
+from xml.etree import ElementTree
 
 import PyPDF2
+from reportlab.lib.units import inch
+from reportlab.pdfgen.canvas import Canvas
 
-####
 __author__ = 'Leonardo F. Cardoso'
+
+VERSION = '1.2.6'
 
 
 def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+    print(*args, file=sys.stderr, flush=True, **kwargs)
 
 
 def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param_image_resolution, param_tmp_dir,
@@ -488,14 +486,14 @@ class Pdf2PdfOcr:
         try:
             if self.verbose_mode:
                 tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                print("[{0}] [DEBUG]\t{1}".format(tstamp, param))
+                print("[{0}] [DEBUG] {1}".format(tstamp, param), flush=True)
         except:
             pass
 
     def log(self, param):
         try:
             tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-            print("[{0}] [LOG]\t{1}".format(tstamp, param))
+            print("[{0}] [LOG] {1}".format(tstamp, param), flush=True)
         except:
             pass
 
@@ -508,7 +506,7 @@ class Pdf2PdfOcr:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
     def ocr(self):
-        self.log("Welcome to pdf2pdfocr version {0} - https://github.com/LeoFCardoso/pdf2pdfocr".format(version))
+        self.log("Welcome to pdf2pdfocr version {0} - https://github.com/LeoFCardoso/pdf2pdfocr".format(VERSION))
         self.detect_file_type()
         if self.input_file_type == "application/pdf":
             self.validate_pdf_input_file()
@@ -1026,10 +1024,9 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
-    version = '1.2.5'
     # Arguments
     parser = argparse.ArgumentParser(
-        description=('pdf2pdfocr.py [https://github.com/LeoFCardoso/pdf2pdfocr] version %s (http://semver.org/lang/pt-BR/)' % version),
+        description=('pdf2pdfocr.py [https://github.com/LeoFCardoso/pdf2pdfocr] version %s (http://semver.org/lang/pt-BR/)' % VERSION),
         formatter_class=argparse.RawTextHelpFormatter)
     requiredNamed = parser.add_argument_group('required arguments')
     requiredNamed.add_argument("-i", dest="input_file", action="store", required=True,
@@ -1089,6 +1086,8 @@ Examples:
     parser.add_argument("-P", dest="pause_end_mode", action="store_true", default=False,
                         help="with successful execution, wait for user to press <Enter> at the final of the "
                              "script (default: not wait)")
+    # Dummy to be called by gooey (GUI)
+    parser.add_argument("--ignore-gooey", action="store_true", default=False)
     #
     args = parser.parse_args()
     #

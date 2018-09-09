@@ -12,14 +12,15 @@ rem --> Open new command prompt to refresh environment variables
 rem ---------------
 
 rem Language data files can be downloaded from https://github.com/tesseract-ocr/tessdata
-rem Example Portuguese (POR) and Spanhish (SPA)
+rem Example Portuguese (POR) and Spanhish (SPA) - Tesseract branch 3.04 and 3.05
 rem ---------------
-aria2c "https://github.com/tesseract-ocr/tessdata/blob/master/por.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
-aria2c "https://github.com/tesseract-ocr/tessdata/blob/master/spa.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
+aria2c "https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/por.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
+aria2c "https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/spa.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
 
 rem Complete python with required libs
+rem (GUI maybe need Visual C++ for Visual Studio 2015 Runtime - https://www.microsoft.com/en-US/download/details.aspx?id=48145)
 rem ---------------
-pip install reportlab
+pip install reportlab Gooey
 pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
 
 rem Install PDF2PDFOCR and VBS extension (SendTo)

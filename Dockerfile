@@ -17,7 +17,7 @@ RUN apk add --no-cache python3 \
 
 RUN apk add --no-cache build-base linux-headers python3-dev zlib-dev jpeg-dev
 
-RUN pip3 install --upgrade Pillow reportlab
+RUN pip3 install --upgrade Pillow reportlab Gooey
 
 RUN rm -r /usr/lib/python*/ensurepip \
  && rm -r /root/.cache

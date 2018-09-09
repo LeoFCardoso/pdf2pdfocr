@@ -34,7 +34,7 @@ In macOS, you will need macports.
     sudo port select --set python3 python37
     sudo port select --set pip pip37
     # Install libs (please ignore warning messages)
-    sudo pip install reportlab
+    sudo pip install reportlab Gooey
     sudo pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
     # Install pdftk (may fail eventually with macports)
     sudo port install pdftk
@@ -48,7 +48,7 @@ Note, wget and pdftk are optional. If macports version of pdftk fail to install,
 
 In Windows, you will need to manually install required software. Please read "install_windows.txt" file and try the tutorial with scoop tool. It's easy! :-)
 
-# docker
+# docker (without GUI)
 The Dockerfile can be used to build a docker image to run pdf2pdfocr inside a container. To build the image, please download all sources and run.
 
     docker build -t leofcardoso/pdf2pdfocr:latest .
@@ -66,3 +66,7 @@ In some cases, you will want to deal with option flags. Please use:
 
     pdf2pdfocr.py --help 
 to view all the options.
+
+It's also possible to use GUI.
+    
+    pdf2pdfocr_gui.py <<optional input file>>
