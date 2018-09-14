@@ -17,7 +17,7 @@ __author__ = 'Leonardo F. Cardoso'
 
 @Gooey(
     program_name="PDF2PDFOCR",
-    target='"{0}"'.format(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + 'pdf2pdfocr.py'),
+    target='"{0}" "{1}"'.format(sys.executable, os.path.dirname(os.path.abspath(__file__)) + os.path.sep + 'pdf2pdfocr.py'),
     default_size=(1024, 768),
     show_success_modal=False,
     tabbed_groups=True,

@@ -42,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.2.6'
+VERSION = '1.2.7'
 
 
 def eprint(*args, **kwargs):
@@ -98,7 +98,7 @@ def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mo
 
 
 def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
-           param_text_generation_strategy, param_delete_temps):
+           param_text_generation_strategy, param_delete_temps, param_tess_can_textonly_pdf):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do OCR of image.
@@ -109,6 +109,9 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
                          '-l', param_tess_lang]
     if param_text_generation_strategy == "tesseract":
         tess_command_line += ['-c', 'tessedit_create_pdf=1']
+        if param_tess_can_textonly_pdf:
+            tess_command_line += ['-c', 'textonly_pdf=1']
+    #
     if param_text_generation_strategy == "native":
         tess_command_line += ['-c', 'tessedit_create_hocr=1']
     tess_command_line += [
@@ -120,9 +123,9 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
                             stderr=open(param_temp_dir + "tess_err_{0}.log".format(param_image_no_ext), "wb"),
                             shell=param_shell_mode)
     pocr.wait()
-    if param_text_generation_strategy == "tesseract":
+    if param_text_generation_strategy == "tesseract" and (not param_tess_can_textonly_pdf):
         pdf_file = param_temp_dir + param_image_no_ext + ".pdf"
-        pdf_file_tmp = param_temp_dir + param_image_no_ext + ".tmp"
+        pdf_file_tmp = param_temp_dir + param_image_no_ext + ".tesspdf"
         os.rename(pdf_file, pdf_file_tmp)
         output_pdf = PyPDF2.PdfFileWriter()
         desc_pdf_file_tmp = open(pdf_file_tmp, 'rb')
@@ -142,13 +145,13 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
         # Try to save some temp space as tesseract generate PDF with same size of image
         if param_delete_temps:
             os.remove(pdf_file_tmp)
-            Path(pdf_file_tmp).touch()  # .tmp files are used to track overall progress
     #
     if param_text_generation_strategy == "native":
         hocr = HocrTransform(param_temp_dir + param_image_no_ext + ".hocr", 300)
         hocr.to_pdf(param_temp_dir + param_image_no_ext + ".pdf", image_file_name=None, show_bounding_boxes=False,
                     invisible_text=True)
-        Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
+    # Track progress in all situations
+    Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
 
 
 def percentual_float(x):
@@ -347,6 +350,9 @@ class Pdf2PdfOcr:
     cmd_pdf2ps = "pdf2ps"
     path_pdf2ps = ""
 
+    tesseract_can_textonly_pdf = False
+    """Since Tesseract 3.05.01, new use case of tesseract"""
+
     extension_images = "jpg"
     """Temp images will use this extension. Using jpg to avoid big temp files in pdf with a lot of pages"""
 
@@ -447,6 +453,9 @@ class Pdf2PdfOcr:
         if self.path_tesseract is None:
             eprint("tesseract not found. Aborting...")
             exit(1)
+        #
+        self.tesseract_can_textonly_pdf = self.test_tesseract_textonly_pdf()
+        #
         # Try to avoid errors on Windows with native OS "convert" command
         # http://savage.net.au/ImageMagick/html/install-convert.html
         # https://www.imagemagick.org/script/magick.php
@@ -723,7 +732,8 @@ This software is free, but if you like it, please donate to support new features
                                                   itertools.repeat(self.shell_mode),
                                                   itertools.repeat(self.path_tesseract),
                                                   itertools.repeat(self.text_generation_strategy),
-                                                  itertools.repeat(self.delete_temps)))
+                                                  itertools.repeat(self.delete_temps),
+                                                  itertools.repeat(self.tesseract_can_textonly_pdf)))
         while not ocr_pool_map.ready():
             pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.tmp"))
             self.log("Waiting for OCR to complete. {0}/{1} pages completed...".format(pages_processed,
@@ -939,6 +949,17 @@ This software is free, but if you like it, please donate to support new features
         if (return_code == 0) and (os.path.isfile(test_image)):
             Pdf2PdfOcr.best_effort_remove(test_image)
             result = True
+        return result
+
+    def test_tesseract_textonly_pdf(self):
+        result = False
+        try:
+            result = ('textonly_pdf' in subprocess.check_output([self.path_tesseract, '--print-parameters'],
+                                                                universal_newlines=True))
+        except Exception:
+            self.log("Error checking tesseract capabilities. Trying to continue without 'textonly_pdf' in Tesseract")
+        #
+        self.log("Tesseract can 'textonly_pdf': {0}".format(result))
         return result
 
     def calculate_ranges(self):
