@@ -42,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.2.7'
+VERSION = '1.2.8'
 
 
 def eprint(*args, **kwargs):
@@ -95,6 +95,7 @@ def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mo
     """
     pd = subprocess.Popen([param_path_mogrify, '-deskew', param_threshold, param_image_file], shell=param_shell_mode)
     pd.wait()
+    return True
 
 
 def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
@@ -152,6 +153,23 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
                     invisible_text=True)
     # Track progress in all situations
     Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
+
+
+def do_rebuild(param_image_file, param_path_convert, param_convert_params, param_tmp_dir, param_shell_mode):
+    """
+    Will be called from multiprocessing, so no global variables are allowed.
+    Create one PDF file from image file.
+    """
+    param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
+    # http://stackoverflow.com/questions/79968/split-a-string-by-spaces-preserving-quoted-substrings-in-python
+    convert_params_list = shlex.split(param_convert_params)
+    command_rebuild = [param_path_convert, param_image_file] + convert_params_list + [param_tmp_dir + "REBUILD_" + param_image_no_ext + ".pdf"]
+    prebuild = subprocess.Popen(
+        command_rebuild,
+        stdout=open(param_tmp_dir + "convert_log_{0}.log".format(param_image_no_ext), "wb"),
+        stderr=open(param_tmp_dir + "convert_err_{0}.log".format(param_image_no_ext), "wb"),
+        shell=param_shell_mode)
+    prebuild.wait()
 
 
 def percentual_float(x):
@@ -351,7 +369,7 @@ class Pdf2PdfOcr:
     path_pdf2ps = ""
 
     tesseract_can_textonly_pdf = False
-    """Since Tesseract 3.05.01, new use case of tesseract"""
+    """Since Tesseract 3.05.01, new use case of tesseract - https://github.com/tesseract-ocr/tesseract/issues/660"""
 
     extension_images = "jpg"
     """Temp images will use this extension. Using jpg to avoid big temp files in pdf with a lot of pages"""
@@ -568,9 +586,8 @@ This software is free, but if you like it, please donate to support new features
 {1}
 ---> Bitcoin (BTC) address: {2}
 ---> Niobio Cash (NBR) address: {3}
----> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(paypal_donate_link,
-                                                                                                                  flattr_donate_link, bitcoin_address,
-                                                                                                                  nbr_address)
+---> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(
+            paypal_donate_link, flattr_donate_link, bitcoin_address, nbr_address)
         self.log(success_message)
 
     def build_final_output(self):
@@ -638,17 +655,33 @@ This software is free, but if you like it, please donate to support new features
         if convert_params == "":
             convert_params = preset_best
         #
-        # http://stackoverflow.com/questions/79968/split-a-string-by-spaces-preserving-quoted-substrings-in-python
         self.log("Rebuilding PDF from images")
-        convert_params_list = shlex.split(convert_params)
-        prebuild = subprocess.Popen(
-            [self.path_convert] + sorted(
-                glob.glob(self.tmp_dir + self.prefix + "*." + self.extension_images)) + convert_params_list + [
-                self.tmp_dir + self.prefix + "-input_unprotected.pdf"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            shell=self.shell_mode)
-        prebuild.wait()
+        rebuild_list = sorted(glob.glob(self.tmp_dir + self.prefix + "*." + self.extension_images))
+        rebuild_pool = multiprocessing.Pool(self.cpu_to_use)
+        rebuild_pool_map = rebuild_pool.starmap_async(do_rebuild,
+                                                      zip(rebuild_list,
+                                                          itertools.repeat(self.path_convert),
+                                                          itertools.repeat(convert_params),
+                                                          itertools.repeat(self.tmp_dir),
+                                                          itertools.repeat(self.shell_mode)))
+        while not rebuild_pool_map.ready():
+            pages_processed = len(glob.glob(self.tmp_dir + "REBUILD_" + self.prefix + "*.pdf"))
+            self.log("Waiting for PDF rebuild to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+            time.sleep(5)
+        #
+        rebuilt_pdf_file_list = sorted(glob.glob(self.tmp_dir + "REBUILD_{0}*.pdf".format(self.prefix)))
+        self.debug("We have {0} rebuilt PDF files".format(len(rebuilt_pdf_file_list)))
+        if len(rebuilt_pdf_file_list) > 0:
+            pdf_merger = PyPDF2.PdfFileMerger()
+            for rebuilt_pdf_file in rebuilt_pdf_file_list:
+                pdf_merger.append(PyPDF2.PdfFileReader(rebuilt_pdf_file, strict=False))
+            pdf_merger.write(self.tmp_dir + self.prefix + "-input_unprotected.pdf")
+            pdf_merger.close()
+        else:
+            eprint("No PDF files generated after image rebuilding. This is not expected. Aborting.")
+            self.cleanup()
+            exit(1)
+        self.debug("PDF rebuilding completed")
         #
         self.debug("Merging with OCR")
         pmulti = subprocess.Popen([self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py',
@@ -656,8 +689,7 @@ This software is free, but if you like it, please donate to support new features
                                    self.tmp_dir + self.prefix + "-ocr.pdf",
                                    self.tmp_dir + self.prefix + "-OUTPUT.pdf"],
                                   stdout=subprocess.DEVNULL,
-                                  stderr=open(self.tmp_dir + "err_multiback-{0}-rebuild.log".format(self.prefix),
-                                              "wb"),
+                                  stderr=open(self.tmp_dir + "err_multiback-{0}-rebuild.log".format(self.prefix), "wb"),
                                   shell=self.shell_mode)
         pmulti.wait()
 
@@ -703,23 +735,18 @@ This software is free, but if you like it, please donate to support new features
 
     def join_ocred_pdf(self):
         # Join PDF files into one file that contains all OCR "backgrounds"
-        # Workaround for bug 72720 in older poppler releases
-        # https://bugs.freedesktop.org/show_bug.cgi?id=72720
         text_pdf_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "pdf")))
         self.debug("We have {0} ocr'ed files".format(len(text_pdf_file_list)))
-        if len(text_pdf_file_list) > 1:
+        if len(text_pdf_file_list) > 0:
             pdf_merger = PyPDF2.PdfFileMerger()
             for text_pdf_file in text_pdf_file_list:
                 pdf_merger.append(PyPDF2.PdfFileReader(text_pdf_file, strict=False))
             pdf_merger.write(self.tmp_dir + self.prefix + "-ocr.pdf")
             pdf_merger.close()
         else:
-            if len(text_pdf_file_list) == 1:
-                shutil.copyfile(text_pdf_file_list[0], self.tmp_dir + self.prefix + "-ocr.pdf")
-            else:
-                eprint("No PDF files generated after OCR. This is not expected. Aborting.")
-                self.cleanup()
-                exit(1)
+            eprint("No PDF files generated after OCR. This is not expected. Aborting.")
+            self.cleanup()
+            exit(1)
         #
         self.debug("Joined ocr'ed PDF files")
 
@@ -746,11 +773,17 @@ This software is free, but if you like it, please donate to support new features
         if self.use_autorotate:
             self.debug("Calculating autorotate values...")
             autorotate_pool = multiprocessing.Pool(self.cpu_to_use)
-            autorotate_pool.starmap(do_autorotate_info, zip(image_file_list,
-                                                            itertools.repeat(self.shell_mode),
-                                                            itertools.repeat(self.tmp_dir),
-                                                            itertools.repeat(self.tess_langs),
-                                                            itertools.repeat(self.path_tesseract)))
+            autorotate_pool_map = autorotate_pool.starmap_async(do_autorotate_info,
+                                                                zip(image_file_list,
+                                                                    itertools.repeat(self.shell_mode),
+                                                                    itertools.repeat(self.tmp_dir),
+                                                                    itertools.repeat(self.tess_langs),
+                                                                    itertools.repeat(self.path_tesseract)))
+            while not autorotate_pool_map.ready():
+                pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.osd"))
+                self.log("Waiting for autorotate to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+                time.sleep(5)
+            #
 
     def autorotate_final_output(self):
         param_source_file = self.tmp_dir + self.prefix + "-OUTPUT.pdf"
@@ -806,12 +839,12 @@ This software is free, but if you like it, please donate to support new features
         if self.use_deskew_mode:
             self.debug("Applying deskew (will rebuild final PDF file)")
             deskew_pool = multiprocessing.Pool(self.cpu_to_use)
-            deskew_pool.starmap(do_deskew, zip(image_file_list, itertools.repeat(self.deskew_threshold),
-                                               itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
-            # Sequential code below
-            # for image_file in deskew_file_list:
-            #     do_deskew(...)
-            #
+            deskew_pool_map = deskew_pool.starmap_async(do_deskew, zip(image_file_list, itertools.repeat(self.deskew_threshold),
+                                                                       itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
+            while not deskew_pool_map.ready():
+                pages_processed = len([x for x in deskew_pool_map._value if x is not None])
+                self.log("Waiting for deskew to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+                time.sleep(5)
 
     def convert_input_to_images(self):
         self.log("Converting input file to images...")
@@ -923,8 +956,6 @@ This software is free, but if you like it, please donate to support new features
         else:
             return False
 
-    #
-
     def detect_file_type(self):
         """Detect mime type of input file"""
         pfile = subprocess.Popen([self.path_file, '-b', '--mime-type', self.input_file], stdout=subprocess.PIPE,
@@ -954,8 +985,7 @@ This software is free, but if you like it, please donate to support new features
     def test_tesseract_textonly_pdf(self):
         result = False
         try:
-            result = ('textonly_pdf' in subprocess.check_output([self.path_tesseract, '--print-parameters'],
-                                                                universal_newlines=True))
+            result = ('textonly_pdf' in subprocess.check_output([self.path_tesseract, '--print-parameters'], universal_newlines=True))
         except Exception:
             self.log("Error checking tesseract capabilities. Trying to continue without 'textonly_pdf' in Tesseract")
         #
