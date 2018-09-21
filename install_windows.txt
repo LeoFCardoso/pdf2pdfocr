@@ -5,7 +5,7 @@ rem https://github.com/lukesampson/scoop/wiki
 rem --> Open new command prompt
 rem --> Please adjust to your arch (32 or 64 bit)
 rem ---------------
-scoop install --arch 64bit aria2 git unzip
+scoop install --arch 64bit aria2 git
 scoop install --arch 64bit file ghostscript imagemagick pdftk poppler tesseract python
 
 rem --> Open new command prompt to refresh environment variables
@@ -26,7 +26,7 @@ pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
 rem Install PDF2PDFOCR and VBS extension (SendTo)
 rem ---------------
 aria2c "https://github.com/LeoFCardoso/pdf2pdfocr/archive/master.zip" --dir="%TEMP%" --out="pdf2pdfocr.zip"
-unzip %TEMP%\pdf2pdfocr.zip -d %USERPROFILE%
+7z x %TEMP%\pdf2pdfocr.zip -o%USERPROFILE%
 move "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr"
 move "%USERPROFILE%\pdf2pdfocr\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
 

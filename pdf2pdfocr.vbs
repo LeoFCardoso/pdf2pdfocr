@@ -8,34 +8,18 @@
 
 ' ******* FUNCTIONS ***
 
-' Run command, without any window and return stdout and stderr as arrays of strings
-' Uses temp files
-' Stdout - position 0
-' Stderr - position 1
+' Run command - see https://www.codeproject.com/Tips/507798/Differences-between-Run-and-Exec-VBScript
 function execCommand(cmd)
 	Set WSHShell = CreateObject("Wscript.Shell")
-	Set fso = CreateObject("Scripting.FileSystemObject")
-	tempOut = fso.GetTempName
-	tempErr = fso.GetTempName
-	path = fso.GetSpecialFolder(2) 'TemporaryFolder
-	tempOut = path & "\" & tempOut
-	tempErr = path & "\" & tempErr
-	full_command = cmd & " > " & tempOut & " 2> " & tempErr
-	WSHShell.Run "%comspec% /c " & full_command, 0, true
-	arResultsOut = Split ("")
-	if CreateObject("Scripting.FileSystemObject").GetFile(tempOut).size > 0 Then
-		arResultsOut = Split(fso.OpenTextFile(tempOut).ReadAll,vbcrlf)
-	end if
-	arResultsErr = Split ("")
-	if CreateObject("Scripting.FileSystemObject").GetFile(tempErr).size > 0 Then
-		arResultsErr = Split(fso.OpenTextFile(tempErr).ReadAll,vbcrlf)
-	end if
-	fso.DeleteFile tempOut
-	fso.DeleteFile tempErr
-	Dim functionOut(1)
-	functionOut(0) = arResultsOut
-	functionOut(1) = arResultsErr
-	execCommand = functionOut
+	comspec = WSHShell.ExpandEnvironmentStrings("%comspec%")
+	Set objExec = WSHShell.Exec(comspec & " /c " & cmd)
+	Do
+		WScript.StdOut.WriteLine(objExec.StdOut.ReadLine())
+	Loop While Not objExec.Stdout.atEndOfStream
+	WScript.StdOut.WriteLine(objExec.StdOut.ReadAll)
+	WScript.StdErr.WriteLine(objExec.StdErr.ReadAll)
+	'
+	execCommand = true
 end function
 
 ' Credits - http://stackoverflow.com/questions/4692542/force-a-vbs-to-run-using-cscript-instead-of-wscript
@@ -59,7 +43,7 @@ Sub Pause(strPause)
      WScript.Echo (strPause)
      z = WScript.StdIn.Read(1)
 End Sub
-	
+
 ' ******* MAIN ***
 forceCScriptExecution
 
@@ -80,9 +64,6 @@ End If
 On Error Goto 0
 ' Get actual options from script to show help
 helpOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py --help")
-For Each helpMessage In helpOut(0)
-	WScript.StdOut.WriteLine(helpMessage)
-Next
 WScript.StdOut.WriteLine("Please enter options.")
 default_option = "-stp -j 0.9"
 WScript.StdOut.WriteLine("Use <Enter> for default [" & default_option & "] or <.> for last used option [" & lastOptionUsed & "].")
@@ -104,20 +85,10 @@ if RewriteLastOptionFile Then
 	objFileW.Close
 end if
 ' Call pdf2pdfocr script to all files passed as arguments
-set objArgs = WScript.Arguments 
-for i = 0 to objArgs.Count - 1 
+set objArgs = WScript.Arguments
+for i = 0 to objArgs.Count - 1
 	WScript.Echo "Processing " & objArgs(i) & " ..."
 	scriptOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py " & options & " -i """ & objArgs(i) & """")
-	WScript.Echo " --> Output:"
-	For j = 0 to uBound(scriptOut(0))
-		message = scriptOut(0)(j)
-		WScript.Echo message
-	Next
-	WScript.Echo " --> Errors/Warnings:"
-	For k = 0 to uBound(scriptOut(1))
-		message = scriptOut(1)(k)
-		WScript.Echo message
-	Next
 	WScript.Echo "---------------------------------------"
 next
 Pause("Press Enter to continue...")
