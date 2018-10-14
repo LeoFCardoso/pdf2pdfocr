@@ -42,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.2.8'
+VERSION = '1.2.9'
 
 
 def eprint(*args, **kwargs):
@@ -643,7 +643,7 @@ This software is free, but if you like it, please donate to support new features
             convert_params = preset_fast
         elif self.user_convert_params == "best":
             convert_params = preset_best
-        elif self.user_convert_params == "grasyscale":
+        elif self.user_convert_params == "grayscale":
             convert_params = preset_grayscale
         elif self.user_convert_params == "jpeg":
             convert_params = preset_jpeg
