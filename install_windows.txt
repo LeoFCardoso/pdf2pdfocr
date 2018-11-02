@@ -12,14 +12,18 @@ rem --> Open new command prompt to refresh environment variables
 rem ---------------
 
 rem Language data files can be downloaded from https://github.com/tesseract-ocr/tessdata
-rem Example Portuguese (POR) and Spanhish (SPA) - Tesseract branch 3.04 and 3.05
+rem Example Portuguese (POR) and Spanhish (SPA) - Tesseract branch 4.00
 rem ---------------
-aria2c "https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/por.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
-aria2c "https://raw.githubusercontent.com/tesseract-ocr/tessdata/3.04.00/spa.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
+aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/por.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
+aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/spa.traineddata" --dir="%TESSDATA_PREFIX%\tessdata"
 
-rem Complete python with required libs
+rem Complete python with VENV and required libs
 rem (GUI maybe need Visual C++ for Visual Studio 2015 Runtime - https://www.microsoft.com/en-US/download/details.aspx?id=48145)
 rem ---------------
+python -m venv "%USERPROFILE%\pdf2pdfocr-venv"
+cd "%USERPROFILE%\pdf2pdfocr-venv"
+.\Scripts\activate.bat
+python -m pip install --upgrade pip
 pip install reportlab Gooey
 pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
 
@@ -27,12 +31,10 @@ rem Install PDF2PDFOCR and VBS extension (SendTo)
 rem ---------------
 aria2c "https://github.com/LeoFCardoso/pdf2pdfocr/archive/master.zip" --dir="%TEMP%" --out="pdf2pdfocr.zip"
 7z x %TEMP%\pdf2pdfocr.zip -o%USERPROFILE%
-move "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr"
-move "%USERPROFILE%\pdf2pdfocr\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
+move "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr-venv"
+move "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
 
-rem Copy script to "scripts" inside python installation, so it can be run from anywhere
+rem Copy script to "scripts" inside python VENV
 rem ---------------
-scoop prefix python > %TEMP%\prefix_python.txt
-set /p PYTHON_PREFIX= < %TEMP%\prefix_python.txt
-del %TEMP%\prefix_python.txt
-copy "%USERPROFILE%\pdf2pdfocr\*.py" "%PYTHON_PREFIX%\Scripts"
+set PYTHON_PREFIX="%USERPROFILE%\pdf2pdfocr-venv"
+move "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\*.py" "%PYTHON_PREFIX%\Scripts"

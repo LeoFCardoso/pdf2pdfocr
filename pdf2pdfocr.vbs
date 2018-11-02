@@ -62,8 +62,11 @@ Else
 	objFile.Close
 End If
 On Error Goto 0
+' Set up paths
+python_venv_path = strHomeFolder & "\pdf2pdfocr-venv\Scripts\python"
+pdf2pdfocr_path = strHomeFolder & "\pdf2pdfocr-venv\Scripts\pdf2pdfocr.py"
 ' Get actual options from script to show help
-helpOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py --help")
+helpOut = execCommand(python_venv_path & " " & pdf2pdfocr_path & " --help")
 WScript.StdOut.WriteLine("Please enter options.")
 default_option = "-stp -j 0.9"
 WScript.StdOut.WriteLine("Use <Enter> for default [" & default_option & "] or <.> for last used option [" & lastOptionUsed & "].")
@@ -88,7 +91,7 @@ end if
 set objArgs = WScript.Arguments
 for i = 0 to objArgs.Count - 1
 	WScript.Echo "Processing " & objArgs(i) & " ..."
-	scriptOut = execCommand("python " & strHomeFolder & "\pdf2pdfocr\pdf2pdfocr.py " & options & " -i """ & objArgs(i) & """")
+	scriptOut = execCommand(python_venv_path & " " & pdf2pdfocr_path & " " & options & " -i """ & objArgs(i) & """")
 	WScript.Echo "---------------------------------------"
 next
 Pause("Press Enter to continue...")
