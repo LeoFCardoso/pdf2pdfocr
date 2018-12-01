@@ -33,6 +33,7 @@ import sys
 import tempfile
 import time
 from collections import namedtuple
+from distutils.version import LooseVersion
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -42,7 +43,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.2.9'
+VERSION = '1.2.10'
 
 
 def eprint(*args, **kwargs):
@@ -73,13 +74,14 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
     pimage.wait()
 
 
-def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract):
+def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract, param_tesseract_version):
     """
     Will be called from multiprocessing, so no global variables are allowed.
-    Do autorotate of images based on tesseract (execution with '-psm 0') information.
+    Do autorotate of images based on tesseract (execution with 'psm 0') information.
     """
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
-    tess_command_line = [param_path_tesseract, '-l', param_tess_lang, '-psm', '0', param_image_file,
+    psm_parameter = "-psm" if (param_tesseract_version == 3) else "--psm"
+    tess_command_line = [param_path_tesseract, '-l', param_tess_lang, psm_parameter, '0', param_image_file,
                          param_temp_dir + param_image_no_ext]
     ptess1 = subprocess.Popen(tess_command_line,
                               stdout=open(param_temp_dir + "autorot_tess_out_{0}.log".format(param_image_no_ext), "wb"),
@@ -371,6 +373,9 @@ class Pdf2PdfOcr:
     tesseract_can_textonly_pdf = False
     """Since Tesseract 3.05.01, new use case of tesseract - https://github.com/tesseract-ocr/tesseract/issues/660"""
 
+    tesseract_version = 3
+    """Tesseract version installed on system"""
+
     extension_images = "jpg"
     """Temp images will use this extension. Using jpg to avoid big temp files in pdf with a lot of pages"""
 
@@ -473,6 +478,7 @@ class Pdf2PdfOcr:
             exit(1)
         #
         self.tesseract_can_textonly_pdf = self.test_tesseract_textonly_pdf()
+        self.tesseract_version = self.get_tesseract_version()
         #
         # Try to avoid errors on Windows with native OS "convert" command
         # http://savage.net.au/ImageMagick/html/install-convert.html
@@ -778,7 +784,8 @@ This software is free, but if you like it, please donate to support new features
                                                                     itertools.repeat(self.shell_mode),
                                                                     itertools.repeat(self.tmp_dir),
                                                                     itertools.repeat(self.tess_langs),
-                                                                    itertools.repeat(self.path_tesseract)))
+                                                                    itertools.repeat(self.path_tesseract),
+                                                                    itertools.repeat(self.tesseract_version)))
             while not autorotate_pool_map.ready():
                 pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.osd"))
                 self.log("Waiting for autorotate to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
@@ -992,6 +999,19 @@ This software is free, but if you like it, please donate to support new features
         self.log("Tesseract can 'textonly_pdf': {0}".format(result))
         return result
 
+    def get_tesseract_version(self):
+        # Inspired by the great lib 'pytesseract' - https://github.com/madmaze/pytesseract/blob/master/src/pytesseract.py
+        try:
+            version_info = subprocess.check_output([self.path_tesseract, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            version_info = version_info[1].lstrip(string.printable[10:])
+            l_version_info = LooseVersion(version_info)
+            result = int(l_version_info.version[0])
+            self.log("Tesseract version: {0}".format(result))
+            return result
+        except Exception as e:
+            self.log("Error checking tesseract version. Trying to continue assuming legacy version 3. Exception was {0}".format(e))
+            return 3
+
     def calculate_ranges(self):
         """
         calculate ranges to run pdftoppm in parallel. Each CPU available will run well defined page range
@@ -1109,7 +1129,7 @@ Examples:
     parser.add_argument("-d", dest="deskew_percent", action="store",
                         help="use imagemagick deskew *before* OCR. <DESKEW_PERCENT> should be a percent, e.g. '40%%'")
     parser.add_argument("-u", dest="autorotate", action="store_true", default=False,
-                        help="try to autorotate pages using tesseract '-psm 0' feature")
+                        help="try to autorotate pages using tesseract 'psm 0' feature")
     parser.add_argument("-j", dest="parallel_percent", action="store", type=percentual_float,
                         help="run this percentual jobs in parallel (0 - 1.0] - multiply with the number of CPU cores"
                              " (default = 1 [all cores])")
