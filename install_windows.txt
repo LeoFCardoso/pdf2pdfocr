@@ -20,7 +20,8 @@ aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/spa.traineddata" --
 rem Complete python with VENV and required libs
 rem (GUI maybe need Visual C++ for Visual Studio 2015 Runtime - https://www.microsoft.com/en-US/download/details.aspx?id=48145)
 rem ---------------
-python -m venv "%USERPROFILE%\pdf2pdfocr-venv"
+pip install virtualenv
+virtualenv --clear --download --always-copy "%USERPROFILE%\pdf2pdfocr-venv"
 cd "%USERPROFILE%\pdf2pdfocr-venv"
 .\Scripts\activate.bat
 python -m pip install --upgrade pip
@@ -31,10 +32,11 @@ rem Install PDF2PDFOCR and VBS extension (SendTo)
 rem ---------------
 aria2c "https://github.com/LeoFCardoso/pdf2pdfocr/archive/master.zip" --dir="%TEMP%" --out="pdf2pdfocr.zip"
 7z x %TEMP%\pdf2pdfocr.zip -o%USERPROFILE%
-move "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr-venv"
-move "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
+del %TEMP%\pdf2pdfocr.zip
+move /Y "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr-venv"
+move /Y "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
 
 rem Copy script to "scripts" inside python VENV
 rem ---------------
 set PYTHON_PREFIX="%USERPROFILE%\pdf2pdfocr-venv"
-move "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\*.py" "%PYTHON_PREFIX%\Scripts"
+move /Y "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\*.py" "%PYTHON_PREFIX%\Scripts"
