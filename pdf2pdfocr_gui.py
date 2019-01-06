@@ -43,9 +43,9 @@ def show_gui(p_input_file_argument):
     basic_options.add_argument("-d", dest="deskew_percent", metavar='Deskew (-d)', action="store",
                                help="Use imagemagick deskew before OCR. Should be a percent, e.g. '40%'")
     basic_options.add_argument("-w", dest="create_text_mode", metavar='Text file (-w)', action="store_true", default=False,
-                               help="Create a text file at same location of PDF OCR file")
+                               help="Create a text file at same location of PDF OCR file [tesseract only]")
     basic_options.add_argument("-u", dest="autorotate", metavar='Autorotate (-u)', action="store_true", default=False,
-                               help="Try to autorotate pages using tesseract '-psm 0' feature")
+                               help="Try to autorotate pages using 'psm 0' feature [tesseract only]")
     basic_options.add_argument("-v", dest="verbose_mode", metavar='Verbose (-v)', action="store_true", default=True,
                                help="enable verbose mode")
     #
@@ -66,22 +66,22 @@ def show_gui(p_input_file_argument):
                                  widget="Dropdown", choices=["fast", "best", "grayscale", "jpeg", "jpeg2000"])
     #
     advanced_options = parser.add_argument_group("Advanced options")
+    advanced_options.add_argument("-c", dest="ocr_engine", metavar='OCR engine (-c)', action="store", type=str, default="tesseract",
+                                  help="select the OCR engine to use", widget="Dropdown", choices=["tesseract", "cuneiform"])
     advanced_options.add_argument("-j", dest="parallel_percent", metavar='Parallel (-j)', action="store", type=float, default=1.0,
                                   help="run this percentual jobs in parallel (0 - 1.0]\nmultiply with the number of CPU cores (default = 1 [all "
                                        "cores])")
-    advanced_options.add_argument("-p", dest="use_pdftk", metavar='Use PDFTK (-p)', action="store_true", default=False,
-                                  help="use pdftk tool to do the final overlay of files (if not rebuild from images)")
     advanced_options.add_argument("-r", dest="image_resolution", metavar='Resolution (-r)', action="store", default=300, type=int,
                                   help="specify image resolution in DPI before OCR operation\nlower is faster, higher improves OCR quality (default "
                                        "is for quality = 300)")
     advanced_options.add_argument("-e", dest="text_generation_strategy", metavar='Text generation (-e)', action="store", default="tesseract",
-                                  type=str, help="specify how text is generated in final pdf file (tesseract, native). Default: tesseract",
+                                  type=str, help="specify how text is generated in final pdf file [tesseract only]",
                                   widget="Dropdown", choices=["tesseract", "native"])
-    advanced_options.add_argument("-l", dest="tess_langs", metavar='Languages (-l)', action="store", required=False, default="por+eng",
-                                  help="force tesseract to use specific languages (default: por+eng)")
+    advanced_options.add_argument("-l", dest="tess_langs", metavar='Languages (-l)', action="store", required=False, default="por",
+                                  help="force tesseract or cuneiform to use specific language")
     advanced_options.add_argument("-m", dest="tess_psm", metavar='Tesseract PSM (-m)', action="store", required=False,
                                   help="force tesseract to use HOCR with specific \"pagesegmode\"\n(default: tesseract "
-                                       "HOCR default = 1). Use with caution")
+                                       "HOCR default = 1) [tesseract only]. Use with caution")
     advanced_options.add_argument("-k", dest="keep_temps", metavar='Keep temps (-k)', action="store_true", default=False,
                                   help="keep temporary files for debug")
     #

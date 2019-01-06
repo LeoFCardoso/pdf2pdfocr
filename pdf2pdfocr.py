@@ -10,7 +10,7 @@
 # and this post: https://github.com/jbarlow83/OCRmyPDF/issues/8
 #
 # pip libraries dependencies: PyPDF2, reportlab
-# external tools dependencies: file, poppler, imagemagick, tesseract, ghostscript, pdftk (optional)
+# external tools dependencies: file, poppler, imagemagick, tesseract, ghostscript, cuneiform (optional)
 ###############################################################################
 import argparse
 import configparser
@@ -38,12 +38,13 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import PyPDF2
+from bs4 import BeautifulSoup
 from reportlab.lib.units import inch
 from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.2.10'
+VERSION = '1.3.0'
 
 
 def eprint(*args, **kwargs):
@@ -100,16 +101,15 @@ def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mo
     return True
 
 
-def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
-           param_text_generation_strategy, param_delete_temps, param_tess_can_textonly_pdf):
+def do_ocr_tesseract(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
+                     param_text_generation_strategy, param_delete_temps, param_tess_can_textonly_pdf):
     """
     Will be called from multiprocessing, so no global variables are allowed.
-    Do OCR of image.
+    Do OCR of image with tesseract
     """
     # TODO - expert mode - let user pass tesseract custom parameters
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
-    tess_command_line = [param_path_tesseract,
-                         '-l', param_tess_lang]
+    tess_command_line = [param_path_tesseract, '-l', param_tess_lang]
     if param_text_generation_strategy == "tesseract":
         tess_command_line += ['-c', 'tessedit_create_pdf=1']
         if param_tess_can_textonly_pdf:
@@ -117,6 +117,7 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
     #
     if param_text_generation_strategy == "native":
         tess_command_line += ['-c', 'tessedit_create_hocr=1']
+    #
     tess_command_line += [
         '-c', 'tessedit_create_txt=1',
         '-c', 'tessedit_pageseg_mode=' + param_tess_psm,
@@ -154,6 +155,48 @@ def do_ocr(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, pa
         hocr.to_pdf(param_temp_dir + param_image_no_ext + ".pdf", image_file_name=None, show_bounding_boxes=False,
                     invisible_text=True)
     # Track progress in all situations
+    Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
+
+
+def do_ocr_cuneiform(param_image_file, param_cunei_lang, param_temp_dir, param_shell_mode, param_path_cunei):
+    """
+    Will be called from multiprocessing, so no global variables are allowed.
+    Do OCR of image with cuneiform
+    """
+    param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
+    cunei_command_line = [param_path_cunei, '-l', param_cunei_lang.lower(), "-f", "hocr", "-o", param_temp_dir + param_image_no_ext + ".hocr",
+                          param_image_file]
+    #
+    pocr = subprocess.Popen(cunei_command_line,
+                            stdout=open(param_temp_dir + "cuneif_out_{0}.log".format(param_image_no_ext), "wb"),
+                            stderr=open(param_temp_dir + "cuneif_err_{0}.log".format(param_image_no_ext), "wb"),
+                            shell=param_shell_mode)
+    pocr.wait()
+    # Sometimes, cuneiform fails to OCR and expected HOCR file is missing. Experiments show that English can be used to try a workaround.
+    if not os.path.isfile(param_temp_dir + param_image_no_ext + ".hocr") and param_cunei_lang.lower() != "eng":
+        eprint("Warning: fail to OCR file '{0}'. Trying again with English language.".format(param_image_no_ext))
+        cunei_command_line[2] = "eng"
+        pocr = subprocess.Popen(cunei_command_line,
+                                stdout=open(param_temp_dir + "cuneif_out_eng_{0}.log".format(param_image_no_ext), "wb"),
+                                stderr=open(param_temp_dir + "cuneif_err_eng_{0}.log".format(param_image_no_ext), "wb"),
+                                shell=param_shell_mode)
+        pocr.wait()
+    #
+    bs_parser = "lxml"
+    if os.path.isfile(param_temp_dir + param_image_no_ext + ".hocr"):
+        # Try to fix unclosed meta tags, as cuneiform HOCR may be not well formed
+        with open(param_temp_dir + param_image_no_ext + ".hocr", "r") as fpr:
+            corrected_hocr = str(BeautifulSoup(fpr, bs_parser))
+    else:
+        eprint("Warning: fail to OCR file '{0}'. Page will not contain text.".format(param_image_no_ext))
+        # TODO try to use the same size as original PDF page (bbox is hard coded by now to look like A4 page - portrait)
+        corrected_hocr = str(BeautifulSoup('<div class="ocr_page" id="page_1" title="image x; bbox 0 0 1700 2400">', bs_parser))
+    with open(param_temp_dir + param_image_no_ext + ".fixed.hocr", "w") as fpw:
+        fpw.write(corrected_hocr)
+    #
+    hocr = HocrTransform(param_temp_dir + param_image_no_ext + ".fixed.hocr", 300)
+    hocr.to_pdf(param_temp_dir + param_image_no_ext + ".pdf", image_file_name=None, show_bounding_boxes=False, invisible_text=True)
+    # Track progress
     Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
 
 
@@ -350,6 +393,8 @@ class HocrTransform:
 
 class Pdf2PdfOcr:
     # External tools command. If you can't edit your path, adjust here to match your system
+    cmd_cuneiform = "cuneiform"
+    path_cuneiform = ""
     cmd_tesseract = "tesseract"
     path_tesseract = ""
     cmd_convert = "convert"
@@ -359,8 +404,6 @@ class Pdf2PdfOcr:
     path_mogrify = ""
     cmd_file = "file"
     path_file = ""
-    cmd_pdftk = "pdftk"
-    path_pdftk = ""
     cmd_pdftoppm = "pdftoppm"
     path_pdftoppm = ""
     cmd_pdffonts = "pdffonts"
@@ -403,6 +446,7 @@ class Pdf2PdfOcr:
 
     def __init__(self, args):
         super().__init__()
+        self.verbose_mode = args.verbose_mode
         self.check_external_tools()
         # Handle arguments from command line
         self.safe_mode = args.safe_mode
@@ -437,21 +481,17 @@ class Pdf2PdfOcr:
         if self.text_generation_strategy not in ["tesseract", "native"]:
             eprint("{0} is not a valid text generation strategy. Exiting.".format(self.text_generation_strategy))
             exit(1)
+        self.ocr_engine = args.ocr_engine
+        if self.ocr_engine not in ["tesseract", "cuneiform"]:
+            eprint("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
+            exit(1)
         self.delete_temps = not args.keep_temps
-        self.verbose_mode = args.verbose_mode
         self.input_file = args.input_file
         if not os.path.isfile(self.input_file):
             eprint("{0} not found. Exiting.".format(self.input_file))
             exit(1)
         self.input_file = os.path.abspath(self.input_file)
         self.input_file_type = ""
-        #
-        self.use_pdftk = args.use_pdftk
-        if self.use_pdftk:
-            self.path_pdftk = shutil.which(self.cmd_pdftk)
-            if self.path_pdftk is None:
-                eprint("pdftk not found. Aborting...")
-                exit(1)
         #
         self.input_file_has_text = False
         self.input_file_is_encrypted = False
@@ -479,6 +519,10 @@ class Pdf2PdfOcr:
         #
         self.tesseract_can_textonly_pdf = self.test_tesseract_textonly_pdf()
         self.tesseract_version = self.get_tesseract_version()
+        #
+        self.path_cuneiform = shutil.which(self.cmd_cuneiform)
+        if self.path_cuneiform is None:
+            self.debug("cuneiform not available")
         #
         # Try to avoid errors on Windows with native OS "convert" command
         # http://savage.net.au/ImageMagick/html/install-convert.html
@@ -535,6 +579,10 @@ class Pdf2PdfOcr:
             # All with PREFIX on temp files
             for f in glob.glob(self.tmp_dir + "*" + self.prefix + "*.*"):
                 Pdf2PdfOcr.best_effort_remove(f)
+            # Cuneiform directories
+            for f in glob.glob(self.tmp_dir + self.prefix + "*_files"):
+                shutil.rmtree(f, ignore_errors=True)
+
         else:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
@@ -605,27 +653,18 @@ This software is free, but if you like it, please donate to support new features
         #
         if (not rebuild_pdf_from_images) and (not self.force_rebuild_mode):
             # Merge OCR background PDF into the main PDF document making a PDF sandwich
-            if self.use_pdftk:
-                self.debug("Merging with OCR with pdftk")
-                ppdftk = subprocess.Popen(
-                    [self.path_pdftk, self.input_file, 'multibackground', self.tmp_dir + self.prefix + "-ocr.pdf",
-                     'output', self.tmp_dir + self.prefix + "-OUTPUT.pdf"], stdout=subprocess.DEVNULL,
-                    stderr=open(self.tmp_dir + "err_multiback-{0}-merge-pdftk.log".format(self.prefix),
-                                "wb"), shell=self.shell_mode)
-                ppdftk.wait()
-            else:
-                self.debug("Merging with OCR")
-                pmulti = subprocess.Popen(
-                    [self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py', self.input_file,
-                     self.tmp_dir + self.prefix + "-ocr.pdf", self.tmp_dir + self.prefix + "-OUTPUT.pdf"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=open(self.tmp_dir + "err_multiback-{0}-merge.log".format(self.prefix), "wb"),
-                    shell=self.shell_mode)
-                pmulti.wait()
-                # Sometimes, the above script fail with some malformed input PDF files.
-                # The code below try to rewrite source PDF and run it again.
-                if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
-                    self.try_repair_input_and_merge()
+            self.debug("Merging with OCR")
+            pmulti = subprocess.Popen(
+                [self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py', self.input_file,
+                 self.tmp_dir + self.prefix + "-ocr.pdf", self.tmp_dir + self.prefix + "-OUTPUT.pdf"],
+                stdout=subprocess.DEVNULL,
+                stderr=open(self.tmp_dir + "err_multiback-{0}-merge.log".format(self.prefix), "wb"),
+                shell=self.shell_mode)
+            pmulti.wait()
+            # Sometimes, the above script fail with some malformed input PDF files.
+            # The code below try to rewrite source PDF and run it again.
+            if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
+                self.try_repair_input_and_merge()
         else:
             self.rebuild_and_merge()
         #
@@ -757,16 +796,25 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Joined ocr'ed PDF files")
 
     def external_ocr(self, image_file_list):
-        self.log("Starting OCR...")
+        self.log("Starting OCR with {0}...".format(self.ocr_engine))
         ocr_pool = multiprocessing.Pool(self.cpu_to_use)
-        ocr_pool_map = ocr_pool.starmap_async(do_ocr,
-                                              zip(image_file_list, itertools.repeat(self.tess_langs),
-                                                  itertools.repeat(self.tess_psm), itertools.repeat(self.tmp_dir),
-                                                  itertools.repeat(self.shell_mode),
-                                                  itertools.repeat(self.path_tesseract),
-                                                  itertools.repeat(self.text_generation_strategy),
-                                                  itertools.repeat(self.delete_temps),
-                                                  itertools.repeat(self.tesseract_can_textonly_pdf)))
+        if self.ocr_engine == "cuneiform":
+            ocr_pool_map = ocr_pool.starmap_async(do_ocr_cuneiform,
+                                                  zip(image_file_list,
+                                                      itertools.repeat(self.tess_langs),
+                                                      itertools.repeat(self.tmp_dir),
+                                                      itertools.repeat(self.shell_mode),
+                                                      itertools.repeat(self.path_cuneiform)))
+        if self.ocr_engine == "tesseract":
+            ocr_pool_map = ocr_pool.starmap_async(do_ocr_tesseract,
+                                                  zip(image_file_list, itertools.repeat(self.tess_langs),
+                                                      itertools.repeat(self.tess_psm), itertools.repeat(self.tmp_dir),
+                                                      itertools.repeat(self.shell_mode),
+                                                      itertools.repeat(self.path_tesseract),
+                                                      itertools.repeat(self.text_generation_strategy),
+                                                      itertools.repeat(self.delete_temps),
+                                                      itertools.repeat(self.tesseract_can_textonly_pdf)))
+        #
         while not ocr_pool_map.ready():
             pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.tmp"))
             self.log("Waiting for OCR to complete. {0}/{1} pages completed...".format(pages_processed,
@@ -1103,6 +1151,8 @@ if __name__ == '__main__':
     requiredNamed.add_argument("-i", dest="input_file", action="store", required=True,
                                help="path for input file")
     #
+    parser.add_argument("-c", dest="ocr_engine", action="store", default="tesseract", type=str,
+                        help="specify OCR engine (tesseract, cuneiform). Default: tesseract")
     parser.add_argument("-s", dest="safe_mode", action="store_true", default=False,
                         help="safe mode. Does not overwrite output [PDF | TXT] OCR file")
     parser.add_argument("-t", dest="check_text_mode", action="store_true", default=False,
@@ -1129,27 +1179,26 @@ Examples:
     parser.add_argument("-d", dest="deskew_percent", action="store",
                         help="use imagemagick deskew *before* OCR. <DESKEW_PERCENT> should be a percent, e.g. '40%%'")
     parser.add_argument("-u", dest="autorotate", action="store_true", default=False,
-                        help="try to autorotate pages using tesseract 'psm 0' feature")
+                        help="try to autorotate pages using 'psm 0' feature [tesseract only]")
     parser.add_argument("-j", dest="parallel_percent", action="store", type=percentual_float,
                         help="run this percentual jobs in parallel (0 - 1.0] - multiply with the number of CPU cores"
                              " (default = 1 [all cores])")
     parser.add_argument("-w", dest="create_text_mode", action="store_true", default=False,
-                        help="also create a text file at same location of PDF OCR file")
+                        help="also create a text file at same location of PDF OCR file [tesseract only]")
     parser.add_argument("-o", dest="output_file", action="store", required=False,
                         help="force output file to the specified location")
-    parser.add_argument("-p", dest="use_pdftk", action="store_true", default=False,
-                        help="force the use of pdftk tool to do the final overlay of files "
-                             "(if not rebuild from images)")
+    parser.add_argument("-p", dest="no_effect_01", action="store_true", default=False,
+                        help="no effect, do not use (reverse compatibility)")
     parser.add_argument("-r", dest="image_resolution", action="store", default=300, type=int,
                         help="specify image resolution in DPI before OCR operation - lower is faster, higher "
                              "improves OCR quality (default is for quality = 300)")
     parser.add_argument("-e", dest="text_generation_strategy", action="store", default="tesseract", type=str,
-                        help="specify how text is generated in final pdf file (tesseract, native). Default: tesseract")
+                        help="specify how text is generated in final pdf file (tesseract, native) [tesseract only]. Default: tesseract")
     parser.add_argument("-l", dest="tess_langs", action="store", required=False,
-                        help="force tesseract to use specific languages (default: por+eng)")
+                        help="force tesseract or cuneiform to use specific language (default: por+eng)")
     parser.add_argument("-m", dest="tess_psm", action="store", required=False,
                         help="force tesseract to use HOCR with specific \"pagesegmode\" (default: tesseract "
-                             "HOCR default = 1). Use with caution")
+                             "HOCR default = 1) [tesseract only]. Use with caution")
     parser.add_argument("-k", dest="keep_temps", action="store_true", default=False,
                         help="keep temporary files for debug")
     parser.add_argument("-v", dest="verbose_mode", action="store_true", default=False,

@@ -26,25 +26,22 @@ In macOS, you will need macports.
     sudo xcodebuild -license
     # Install Macports from https://www.macports.org/install.php
     sudo port selfupdate
-    # Install tesseract (Portuguese included below - please add your preferred languages)
+    # Install tesseract as main ocr engine (Portuguese included below - please add your preferred languages)
     sudo port install git libtool automake autoconf tesseract tesseract-por tesseract-osd tesseract-eng
+    # Install cuneiform (the optional ocr engine - see flag "-c")
+    sudo port install cuneiform
     # Install python 3 and other dependencies
-    sudo port install python37 py37-pip poppler poppler-data ImageMagick wget ghostscript
+    sudo port install python37 py37-pip poppler poppler-data ImageMagick ghostscript
     # Configure default python3 installer
     sudo port select --set python3 python37
     sudo port select --set pip pip37
     # Install libs (please ignore warning messages)
     sudo pip install reportlab Gooey
     sudo pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
-    # Install pdftk (may fail eventually with macports)
-    sudo port install pdftk
-    # if fail, please install pdftk manually
-    # for versions <  macOS 10.11
-      wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.6-setup.pkg
-    # for versions >= macOS 10.11 (http://stackoverflow.com/questions/32505951/pdftk-server-on-os-x-10-11)
-      wget https://www.pdflabs.com/tools/pdftk-the-pdf-toolkit/pdftk_server-2.02-mac_osx-10.11-setup.pkg
+    # Install optional libs (for cuneiform)
+    sudo pip install lxml beautifulsoup4
 
-Note, wget and pdftk are optional. If macports version of pdftk fail to install, you have to install it manually with above command (or never use "-p" flag).
+Cuneiform is optional.
 
 In Windows, you will need to manually install required software. Please read "install_windows.txt" file and try the tutorial with scoop tool. It's easy! :-)
 

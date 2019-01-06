@@ -14,6 +14,7 @@
 import datetime
 import sys
 from PyPDF2 import PdfFileWriter, PdfFileReader
+
 #
 __author__ = 'Leonardo F. Cardoso'
 #
@@ -28,6 +29,8 @@ def debug(param):
             print("[{0}] [DEBUG]\t{1}".format(tstamp, param))
     except:
         pass
+
+
 #
 
 output = PdfFileWriter()
@@ -38,7 +41,7 @@ textpdf = PdfFileReader(open(sys.argv[2], 'rb'), strict=False)
 # Copy pages to output with text
 scale_tolerance = 0.001
 for i in range(imagepdf.getNumPages()):
-    debug("Page: {0}".format(i+1))
+    debug("Page: {0}".format(i + 1))
     imagepage = imagepdf.getPage(i)
     textpage = textpdf.getPage(i)
     debug("Img (original): {0}".format(imagepage.mediaBox.upperRight))
@@ -74,11 +77,11 @@ for i in range(imagepdf.getNumPages()):
         debug("Merge rotated")
         # Tested values for translation with 90 degrees
         if rotate_angle == 90:
-            textpage.mergeRotatedTranslatedPage(imagepage, (-1*rotate_angle), image_page_y / 2,
+            textpage.mergeRotatedTranslatedPage(imagepage, (-1 * rotate_angle), image_page_y / 2,
                                                 image_page_y / 2, expand=False)
         # Tested values for translation with 180 degrees
         if rotate_angle == 180:
-            textpage.mergeRotatedTranslatedPage(imagepage, (-1*rotate_angle), image_page_x / 2,
+            textpage.mergeRotatedTranslatedPage(imagepage, (-1 * rotate_angle), image_page_x / 2,
                                                 image_page_y / 2, expand=False)
         # Tested values for translation with 270 degrees
         if rotate_angle == 270:
