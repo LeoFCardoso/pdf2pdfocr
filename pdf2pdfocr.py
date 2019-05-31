@@ -44,7 +44,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.3.0'
+VERSION = '1.3.1'
 
 
 def eprint(*args, **kwargs):
@@ -1023,19 +1023,23 @@ This software is free, but if you like it, please donate to support new features
     def test_convert(self):
         """
         test convert command to check if it's ImageMagick
-        :return: True if it's ImageMagicks convert, false with any other case
+        :return: True if it's ImageMagicks convert, false with any other case or error
         """
-        result = False
-        test_image = self.tmp_dir + "converttest-" + self.prefix + ".jpg"
-        ptest = subprocess.Popen([self.path_convert, 'rose:', test_image], stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, shell=self.shell_mode)
-        ptest.communicate()[0]
-        ptest.wait()
-        return_code = ptest.returncode
-        if (return_code == 0) and (os.path.isfile(test_image)):
-            Pdf2PdfOcr.best_effort_remove(test_image)
-            result = True
-        return result
+        try:
+            result = False
+            test_image = self.tmp_dir + "converttest-" + self.prefix + ".jpg"
+            ptest = subprocess.Popen([self.path_convert, 'rose:', test_image], stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL, shell=self.shell_mode)
+            ptest.communicate()[0]
+            ptest.wait()
+            return_code = ptest.returncode
+            if (return_code == 0) and (os.path.isfile(test_image)):
+                Pdf2PdfOcr.best_effort_remove(test_image)
+                result = True
+            return result
+        except Exception as e:
+            self.log("Error testing convert utility. Assuming there is no 'convert' available...")
+            return False
 
     def test_tesseract_textonly_pdf(self):
         result = False
