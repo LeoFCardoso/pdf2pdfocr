@@ -82,6 +82,8 @@ def show_gui(p_input_file_argument):
     advanced_options.add_argument("-m", dest="tess_psm", metavar='Tesseract PSM (-m)', action="store", required=False,
                                   help="force tesseract to use HOCR with specific \"pagesegmode\"\n(default: tesseract "
                                        "HOCR default = 1) [tesseract only]. Use with caution")
+    advanced_options.add_argument("-x", dest="extra_ocr_flag", metavar='Extra OCR parameters (-x)', action="store", required=False, default="",
+                                  help="add extra command line flags in select OCR engine for all pages.\nUse with caution")
     advanced_options.add_argument("-k", dest="keep_temps", metavar='Keep temps (-k)', action="store_true", default=False,
                                   help="keep temporary files for debug")
     #

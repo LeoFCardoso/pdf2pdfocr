@@ -44,7 +44,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.3.1'
+VERSION = '1.4.0'
 
 
 def eprint(*args, **kwargs):
@@ -101,15 +101,17 @@ def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mo
     return True
 
 
-def do_ocr_tesseract(param_image_file, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
+def do_ocr_tesseract(param_image_file, param_extra_ocr_flag, param_tess_lang, param_tess_psm, param_temp_dir, param_shell_mode, param_path_tesseract,
                      param_text_generation_strategy, param_delete_temps, param_tess_can_textonly_pdf):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do OCR of image with tesseract
     """
-    # TODO - expert mode - let user pass tesseract custom parameters
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
-    tess_command_line = [param_path_tesseract, '-l', param_tess_lang]
+    tess_command_line = [param_path_tesseract]
+    if type(param_extra_ocr_flag) == str:
+        tess_command_line.extend(param_extra_ocr_flag.split(" "))
+    tess_command_line.extend(['-l', param_tess_lang])
     if param_text_generation_strategy == "tesseract":
         tess_command_line += ['-c', 'tessedit_create_pdf=1']
         if param_tess_can_textonly_pdf:
@@ -158,14 +160,16 @@ def do_ocr_tesseract(param_image_file, param_tess_lang, param_tess_psm, param_te
     Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
 
 
-def do_ocr_cuneiform(param_image_file, param_cunei_lang, param_temp_dir, param_shell_mode, param_path_cunei):
+def do_ocr_cuneiform(param_image_file, param_extra_ocr_flag, param_cunei_lang, param_temp_dir, param_shell_mode, param_path_cunei):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do OCR of image with cuneiform
     """
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
-    cunei_command_line = [param_path_cunei, '-l', param_cunei_lang.lower(), "-f", "hocr", "-o", param_temp_dir + param_image_no_ext + ".hocr",
-                          param_image_file]
+    cunei_command_line = [param_path_cunei]
+    if type(param_extra_ocr_flag) == str:
+        cunei_command_line.extend(param_extra_ocr_flag.split(" "))
+    cunei_command_line.extend(['-l', param_cunei_lang.lower(), "-f", "hocr", "-o", param_temp_dir + param_image_no_ext + ".hocr", param_image_file])
     #
     pocr = subprocess.Popen(cunei_command_line,
                             stdout=open(param_temp_dir + "cuneif_out_{0}.log".format(param_image_no_ext), "wb"),
@@ -175,7 +179,10 @@ def do_ocr_cuneiform(param_image_file, param_cunei_lang, param_temp_dir, param_s
     # Sometimes, cuneiform fails to OCR and expected HOCR file is missing. Experiments show that English can be used to try a workaround.
     if not os.path.isfile(param_temp_dir + param_image_no_ext + ".hocr") and param_cunei_lang.lower() != "eng":
         eprint("Warning: fail to OCR file '{0}'. Trying again with English language.".format(param_image_no_ext))
-        cunei_command_line[2] = "eng"
+        cunei_command_line = [param_path_cunei]
+        if type(param_extra_ocr_flag) == str:
+            cunei_command_line.extend(param_extra_ocr_flag.split(" "))
+        cunei_command_line.extend(['-l', "eng", "-f", "hocr", "-o", param_temp_dir + param_image_no_ext + ".hocr", param_image_file])
         pocr = subprocess.Popen(cunei_command_line,
                                 stdout=open(param_temp_dir + "cuneif_out_eng_{0}.log".format(param_image_no_ext), "wb"),
                                 stderr=open(param_temp_dir + "cuneif_err_eng_{0}.log".format(param_image_no_ext), "wb"),
@@ -485,6 +492,9 @@ class Pdf2PdfOcr:
         if self.ocr_engine not in ["tesseract", "cuneiform"]:
             eprint("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
             exit(1)
+        self.extra_ocr_flag = args.extra_ocr_flag
+        if self.extra_ocr_flag is not None:
+            self.extra_ocr_flag = str(self.extra_ocr_flag.strip())
         self.delete_temps = not args.keep_temps
         self.input_file = args.input_file
         if not os.path.isfile(self.input_file):
@@ -801,14 +811,18 @@ This software is free, but if you like it, please donate to support new features
         if self.ocr_engine == "cuneiform":
             ocr_pool_map = ocr_pool.starmap_async(do_ocr_cuneiform,
                                                   zip(image_file_list,
+                                                      itertools.repeat(self.extra_ocr_flag),
                                                       itertools.repeat(self.tess_langs),
                                                       itertools.repeat(self.tmp_dir),
                                                       itertools.repeat(self.shell_mode),
                                                       itertools.repeat(self.path_cuneiform)))
         if self.ocr_engine == "tesseract":
             ocr_pool_map = ocr_pool.starmap_async(do_ocr_tesseract,
-                                                  zip(image_file_list, itertools.repeat(self.tess_langs),
-                                                      itertools.repeat(self.tess_psm), itertools.repeat(self.tmp_dir),
+                                                  zip(image_file_list,
+                                                      itertools.repeat(self.extra_ocr_flag),
+                                                      itertools.repeat(self.tess_langs),
+                                                      itertools.repeat(self.tess_psm),
+                                                      itertools.repeat(self.tmp_dir),
                                                       itertools.repeat(self.shell_mode),
                                                       itertools.repeat(self.path_tesseract),
                                                       itertools.repeat(self.text_generation_strategy),
@@ -1203,6 +1217,8 @@ Examples:
     parser.add_argument("-m", dest="tess_psm", action="store", required=False,
                         help="force tesseract to use HOCR with specific \"pagesegmode\" (default: tesseract "
                              "HOCR default = 1) [tesseract only]. Use with caution")
+    parser.add_argument("-x", dest="extra_ocr_flag", action="store", required=False,
+                        help="add extra command line flags in select OCR engine for all pages. Use with caution")
     parser.add_argument("-k", dest="keep_temps", action="store_true", default=False,
                         help="keep temporary files for debug")
     parser.add_argument("-v", dest="verbose_mode", action="store_true", default=False,
