@@ -640,18 +640,21 @@ class Pdf2PdfOcr:
         paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name" \
                              "=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
         flattr_donate_link = "https://flattr.com/@pdf2pdfocr.devel"
+        tippin_donate_link = "https://tippin.me/@LeoFCardoso"
         bitcoin_address = "173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ"
-        nbr_address = "N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr"
+        dogecoin_address = "D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG"
         success_message = """Success!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
 {0}
 ---> Flattr
 {1}
----> Bitcoin (BTC) address: {2}
----> Niobio Cash (NBR) address: {3}
+---> Tippin.me
+{2}
+---> Bitcoin (BTC) address: {3}
+---> Dogecoin (DOGE) address: {4}
 ---> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(
-            paypal_donate_link, flattr_donate_link, bitcoin_address, nbr_address)
+            paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address)
         self.log(success_message)
 
     def build_final_output(self):

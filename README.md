@@ -9,11 +9,16 @@ This software is free, but if you like it, please donate to support new features
 
 [![flattr](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?fid=pojqg0&url=https%3A%2F%2Fgithub.com%2FLeoFCardoso%2Fpdf2pdfocr)
 
-Bitcoin (BTC) address: 173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ
+Bitcoin (BTC) address: [173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ](https://blockchair.com/bitcoin/address/173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ)
 
-Niobio Cash (NBR - https://niobiocash.org) address: N918uWiGba4ZcCBsc8nZrqhRaucjAZvhnMQ6WA7ubKoNhgNmWS1xn1pThP9HJG6rWqVEEWSPRkJff6dQjCEtbgtMP2Eudcr
+# tips
+Tips are also welcome!
 
-Please contact for donations in other cryptocurrencies.
+[![tippin.me](https://badgen.net/badge/%E2%9A%A1%EF%B8%8Ftippin.me/@LeoFCardoso/F0918E)](https://tippin.me/@LeoFCardoso)
+
+Dogecoin (DOGE) address: [D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG](https://blockchair.com/dogecoin/address/D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG)
+
+Please contact for donations and tips in other cryptocurrencies.
 
 # installation
 In Linux, installation is straightforward. Just install required packages and be happy.
