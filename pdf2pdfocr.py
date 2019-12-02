@@ -44,7 +44,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.4.0'
+VERSION = '1.5.0'
 
 
 def eprint(*args, **kwargs):
@@ -472,11 +472,22 @@ class Pdf2PdfOcr:
         if self.parallel_threshold is None:
             self.parallel_threshold = 1  # Default
         self.create_text_mode = args.create_text_mode
-        self.force_out_mode = args.output_file is not None
-        if self.force_out_mode:
+        self.force_out_file_mode = args.output_file is not None
+        if self.force_out_file_mode:
             self.force_out_file = args.output_file
         else:
             self.force_out_file = ""
+        self.force_out_dir_mode = args.output_dir is not None
+        if self.force_out_dir_mode:
+            self.force_out_dir = args.output_dir
+        else:
+            self.force_out_dir = ""
+        if self.force_out_file != "" and self.force_out_dir != "":
+            eprint("It's not possible to force output name and dir at the same time. Please use '-o' OR '-O'")
+            exit(1)
+        if self.force_out_dir_mode and (not os.path.isdir(self.force_out_dir)):
+            eprint("Invalid output directory: {0}".format(self.force_out_dir))
+            exit(1)
         self.tess_langs = args.tess_langs
         if self.tess_langs is None:
             self.tess_langs = "por+eng"  # Default
@@ -954,11 +965,14 @@ This software is free, but if you like it, please donate to support new features
             Pdf2PdfOcr.best_effort_remove(self.output_file_text)
 
     def define_output_files(self):
-        if self.force_out_mode:
+        if self.force_out_file_mode:
             self.output_file = self.force_out_file
         else:
+            if self.force_out_dir_mode:
+                output_dir = os.path.abspath(self.force_out_dir)
+            else:
+                output_dir = os.path.dirname(self.input_file)
             output_name_no_ext = os.path.splitext(os.path.basename(self.input_file))[0]
-            output_dir = os.path.dirname(self.input_file)
             self.output_file = output_dir + os.path.sep + output_name_no_ext + "-OCR.pdf"
         #
         self.output_file_text = self.output_file + ".txt"
@@ -1207,7 +1221,9 @@ Examples:
     parser.add_argument("-w", dest="create_text_mode", action="store_true", default=False,
                         help="also create a text file at same location of PDF OCR file [tesseract only]")
     parser.add_argument("-o", dest="output_file", action="store", required=False,
-                        help="force output file to the specified location")
+                        help="path for output file")
+    parser.add_argument("-O", dest="output_dir", action="store", required=False,
+                        help="path for output directory")
     parser.add_argument("-p", dest="no_effect_01", action="store_true", default=False,
                         help="no effect, do not use (reverse compatibility)")
     parser.add_argument("-r", dest="image_resolution", action="store", default=300, type=int,
