@@ -38,13 +38,14 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import PyPDF2
+from PyPDF2.generic import ByteStringObject
 from bs4 import BeautifulSoup
 from reportlab.lib.units import inch
 from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.5.0'
+VERSION = '1.5.1'
 
 
 def eprint(*args, **kwargs):
@@ -1140,6 +1141,9 @@ This software is free, but if you like it, please donate to support new features
             for key in self.input_file_metadata:
                 value = self.input_file_metadata[key]
                 if key == producer_key:
+                    if type(value) == ByteStringObject:
+                        value = str(value, errors="ignore")
+                        value = "".join(filter(lambda x: x in string.printable, value))  # Try to remove unprintable
                     value = value + "; " + our_name
                     read_producer = True
                 #
