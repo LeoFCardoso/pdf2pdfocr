@@ -13,9 +13,9 @@
 #
 import datetime
 import sys
+
 from PyPDF2 import PdfFileWriter, PdfFileReader
 
-#
 __author__ = 'Leonardo F. Cardoso'
 #
 
@@ -30,8 +30,6 @@ def debug(param):
     except:
         pass
 
-
-#
 
 output = PdfFileWriter()
 # First file (image)
@@ -70,8 +68,9 @@ for i in range(imagepdf.getNumPages()):
         debug("Scaling...")
         imagepage.scale(float(factor_x), float(factor_y))
     # imagepage stay on top
-    if rotate_angle == 0:
+    if rotate_angle == 0 or rotate_angle == 360:
         debug("Merge simple")
+        # TODO very slow in some PDFs
         textpage.mergePage(imagepage)
     else:
         debug("Merge rotated")
