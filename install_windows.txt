@@ -6,7 +6,7 @@ rem --> Open new command prompt
 rem --> Please adjust to your arch (32 or 64 bit)
 rem ---------------
 scoop install --arch 64bit aria2 git
-scoop install --arch 64bit file ghostscript imagemagick poppler tesseract python
+scoop install --arch 64bit file ghostscript imagemagick poppler tesseract python qpdf
 
 rem --> Open new command prompt to refresh environment variables
 rem ---------------

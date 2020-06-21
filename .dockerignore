@@ -1,3 +1,4 @@
 # Ignore when building image
 testDocs/*
+testDocs2/*
 PDF2PDFOCR_Windows_Software/*

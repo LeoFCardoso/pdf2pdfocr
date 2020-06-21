@@ -35,6 +35,8 @@ In macOS, you will need macports.
     sudo port install git libtool automake autoconf tesseract tesseract-por tesseract-osd tesseract-eng
     # Install cuneiform (the optional ocr engine - see flag "-c")
     sudo port install cuneiform
+    # Install qpdf (optional for better performance)
+    sudo port install qpdf
     # Install python 3 and other dependencies
     sudo port install python37 py37-pip poppler poppler-data ImageMagick ghostscript
     # Configure default python3 installer
@@ -46,7 +48,7 @@ In macOS, you will need macports.
     # Install optional libs (for cuneiform)
     sudo pip3 install lxml beautifulsoup4
 
-Cuneiform is optional.
+Cuneiform and qpdf are optional.
 
 In Windows, you will need to manually install required software. Please read "install_windows.txt" file and try the tutorial with scoop tool. It's easy! :-)
 

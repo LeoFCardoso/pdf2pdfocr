@@ -2,5 +2,6 @@
 .parallel/*
 testDocs*/*
 PDF2PDFOCR_Windows_Software/*
+regressionTest.txt
 teste.sh
 test.py

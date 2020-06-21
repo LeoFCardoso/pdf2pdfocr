@@ -1,8 +1,8 @@
 # pdf2pdfocr
 #
-# Dockerfile version 4.0 - Ubuntu 18:04
+# Dockerfile version 5.0
 #
-FROM ubuntu:18.04
+FROM ubuntu:19.10
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
 
 RUN useradd docker \
@@ -12,6 +12,7 @@ RUN useradd docker \
 # Software dependencies [Start]
 RUN apt-get update && apt-get install -y --no-install-recommends \
   cuneiform \
+  qpdf \
   file \
   ghostscript \
   imagemagick \
@@ -32,7 +33,9 @@ RUN rm /etc/ImageMagick-6/policy.xml
 # Python 3 and deps [Start]
 RUN pip3 install --upgrade Pillow reportlab \
  && pip3 install --upgrade lxml beautifulsoup4 \
- && pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
+ && pip3 install --upgrade wheel
+
+RUN pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
 # Python 3 and deps [End]
 
 RUN tesseract --list-langs    # just a test

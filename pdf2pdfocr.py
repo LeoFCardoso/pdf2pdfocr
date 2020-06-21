@@ -45,7 +45,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.5.2'
+VERSION = '1.6.0'
 
 
 def eprint(*args, **kwargs):
@@ -420,6 +420,8 @@ class Pdf2PdfOcr:
     path_ps2pdf = ""
     cmd_pdf2ps = "pdf2ps"
     path_pdf2ps = ""
+    cmd_qpdf = "qpdf"
+    path_qpdf = ""
 
     tesseract_can_textonly_pdf = False
     """Since Tesseract 3.05.01, new use case of tesseract - https://github.com/tesseract-ocr/tesseract/issues/660"""
@@ -533,7 +535,7 @@ class Pdf2PdfOcr:
         #
 
     def check_external_tools(self):
-        """Check if external tools are available, aborting in case of any error."""
+        """Check if external tools are available, aborting or warning in case of any error."""
         self.path_tesseract = shutil.which(self.cmd_tesseract)
         if self.path_tesseract is None:
             eprint("tesseract not found. Aborting...")
@@ -580,6 +582,11 @@ class Pdf2PdfOcr:
         self.path_pdf2ps = shutil.which(self.cmd_pdf2ps)
         if self.path_ps2pdf is None or self.path_pdf2ps is None:
             eprint("ps2pdf or pdf2ps (ghostscript) not found. File repair will not work...")
+        #
+        self.path_qpdf = shutil.which(self.cmd_qpdf)
+        if self.path_qpdf is None:
+            self.log("External tool 'qpdf' not available. Merge can be slow")
+        #
 
     def debug(self, param):
         try:
@@ -669,6 +676,27 @@ This software is free, but if you like it, please donate to support new features
             paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address)
         self.log(success_message)
 
+    def _merge_ocr(self, image_pdf_file_path, text_pdf_file_path, result_pdf_file_path, tag):
+        # Merge OCR background PDF into the main PDF document making a PDF sandwich
+        self.debug("Merging with OCR")
+        if self.path_qpdf is not None:
+            # qpdf_command = [self.path_qpdf, "--underlay", image_pdf_file_path, "--", text_pdf_file_path, result_pdf_file_path]
+            qpdf_command = [self.path_qpdf, "--overlay", text_pdf_file_path, "--", image_pdf_file_path, result_pdf_file_path]
+            pqpdf = subprocess.Popen(
+                qpdf_command,
+                stdout=subprocess.DEVNULL,
+                stderr=open(self.tmp_dir + "err_merge-qpdf-{0}-{1}.log".format(self.prefix, tag), "wb"),
+                shell=self.shell_mode)
+            pqpdf.wait()
+        else:
+            pmulti = subprocess.Popen(
+                [self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py',
+                 image_pdf_file_path, text_pdf_file_path, result_pdf_file_path],
+                stdout=subprocess.DEVNULL,
+                stderr=open(self.tmp_dir + "err_merge-multiback-{0}-{1}.log".format(self.prefix, tag), "wb"),
+                shell=self.shell_mode)
+            pmulti.wait()
+
     def build_final_output(self):
         # Start building final PDF.
         # First, should we rebuild source file?
@@ -677,17 +705,10 @@ This software is free, but if you like it, please donate to support new features
             rebuild_pdf_from_images = True
         #
         if (not rebuild_pdf_from_images) and (not self.force_rebuild_mode):
-            # Merge OCR background PDF into the main PDF document making a PDF sandwich
-            self.debug("Merging with OCR")
-            pmulti = subprocess.Popen(
-                [self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py', self.input_file,
-                 self.tmp_dir + self.prefix + "-ocr.pdf", self.tmp_dir + self.prefix + "-OUTPUT.pdf"],
-                stdout=subprocess.DEVNULL,
-                stderr=open(self.tmp_dir + "err_multiback-{0}-merge.log".format(self.prefix), "wb"),
-                shell=self.shell_mode)
-            pmulti.wait()
-            # Sometimes, the above script fail with some malformed input PDF files.
-            # The code below try to rewrite source PDF and run it again.
+            self._merge_ocr(self.input_file, (self.tmp_dir + self.prefix + "-ocr.pdf"), (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "final-output")
+            #
+            # Try to handle fail.
+            # The code below try to rewrite source PDF and try again.
             if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
                 self.try_repair_input_and_merge()
         else:
@@ -753,19 +774,12 @@ This software is free, but if you like it, please donate to support new features
             exit(1)
         self.debug("PDF rebuilding completed")
         #
-        self.debug("Merging with OCR")
-        pmulti = subprocess.Popen([self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py',
-                                   self.tmp_dir + self.prefix + "-input_unprotected.pdf",
-                                   self.tmp_dir + self.prefix + "-ocr.pdf",
-                                   self.tmp_dir + self.prefix + "-OUTPUT.pdf"],
-                                  stdout=subprocess.DEVNULL,
-                                  stderr=open(self.tmp_dir + "err_multiback-{0}-rebuild.log".format(self.prefix), "wb"),
-                                  shell=self.shell_mode)
-        pmulti.wait()
+        self._merge_ocr((self.tmp_dir + self.prefix + "-input_unprotected.pdf"),
+                        (self.tmp_dir + self.prefix + "-ocr.pdf"),
+                        (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "rebuild-merge")
 
     def try_repair_input_and_merge(self):
-        self.debug(
-            "Fail to merge source PDF with extracted OCR text. Trying to fix source PDF to build final file...")
+        self.debug("Fail to merge source PDF with extracted OCR text. Trying to fix source PDF to build final file...")
         prepair1 = subprocess.Popen(
             [self.path_pdf2ps, self.input_file, self.tmp_dir + self.prefix + "-fixPDF.ps"],
             stdout=subprocess.DEVNULL,
@@ -778,16 +792,10 @@ This software is free, but if you like it, please donate to support new features
                                     stderr=open(self.tmp_dir + "err_ps2pdf-{0}.log".format(self.prefix),
                                                 "wb"), shell=self.shell_mode)
         prepair2.wait()
-        pmulti2 = subprocess.Popen(
-            [self.path_this_python, self.script_dir + 'pdf2pdfocr_multibackground.py',
-             self.tmp_dir + self.prefix + "-fixPDF.pdf",
-             self.tmp_dir + self.prefix + "-ocr.pdf", self.tmp_dir + self.prefix + "-OUTPUT.pdf"],
-            stdout=subprocess.DEVNULL,
-            stderr=open(self.tmp_dir + "err_multiback-{0}-merge-fixed.log".format(self.prefix),
-                        "wb"),
-            shell=self.shell_mode)
-        pmulti2.wait()
         #
+        self._merge_ocr((self.tmp_dir + self.prefix + "-fixPDF.pdf"),
+                        (self.tmp_dir + self.prefix + "-ocr.pdf"),
+                        (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "repair_input")
 
     def create_text_output(self):
         # Create final text output
@@ -914,8 +922,8 @@ This software is free, but if you like it, please donate to support new features
             file_source.close()
         else:
             # No autorotate, just rename the file to next method process correctly
+            self.debug("Autorotate skipped")
             os.rename(param_source_file, param_dest_file)
-            #
 
     #
 
