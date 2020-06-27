@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##############################################################################
-# Copyright (c) 2018: Leonardo Cardoso
+# Copyright (c) 2020: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
@@ -8,9 +8,6 @@
 # Unless requested, does not re-encode the images inside an unprotected PDF file.
 # Leonardo Cardoso - inspired in ocrmypdf (https://github.com/jbarlow83/OCRmyPDF)
 # and this post: https://github.com/jbarlow83/OCRmyPDF/issues/8
-#
-# pip libraries dependencies: PyPDF2, reportlab
-# external tools dependencies: file, poppler, imagemagick, tesseract, ghostscript, cuneiform (optional)
 ###############################################################################
 import argparse
 import configparser
@@ -45,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.6.0'
+VERSION = '1.6.1 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -288,7 +285,7 @@ class HocrTransform:
         text = ''
         if element.text is not None:
             text += element.text
-        for child in element.getchildren():
+        for child in element:
             text += self._get_element_text(child)
         if element.tail is not None:
             text += element.tail
@@ -680,8 +677,21 @@ This software is free, but if you like it, please donate to support new features
         # Merge OCR background PDF into the main PDF document making a PDF sandwich
         self.debug("Merging with OCR")
         if self.path_qpdf is not None:
-            # qpdf_command = [self.path_qpdf, "--underlay", image_pdf_file_path, "--", text_pdf_file_path, result_pdf_file_path]
-            qpdf_command = [self.path_qpdf, "--overlay", text_pdf_file_path, "--", image_pdf_file_path, result_pdf_file_path]
+            with open(image_pdf_file_path, "rb") as img_f:
+                img_data = PyPDF2.PdfFileReader(img_f, strict=False)
+                first_page_img_rect = img_data.getPage(0).mediaBox
+                first_page_img_area = first_page_img_rect.getWidth() * first_page_img_rect.getHeight()
+            with open(text_pdf_file_path, "rb") as txt_f:
+                txt_data = PyPDF2.PdfFileReader(txt_f, strict=False)
+                first_page_txt_rect = txt_data.getPage(0).mediaBox
+                first_page_txt_area = first_page_txt_rect.getWidth() * first_page_txt_rect.getHeight()
+            #
+            # Define overlay / underlay based on biggest page
+            if first_page_txt_area < first_page_img_area:
+                qpdf_command = [self.path_qpdf, "--underlay", image_pdf_file_path, "--", text_pdf_file_path, result_pdf_file_path]
+            else:
+                qpdf_command = [self.path_qpdf, "--overlay", text_pdf_file_path, "--", image_pdf_file_path, result_pdf_file_path]
+            #
             pqpdf = subprocess.Popen(
                 qpdf_command,
                 stdout=subprocess.DEVNULL,
