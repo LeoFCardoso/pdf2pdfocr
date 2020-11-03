@@ -42,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.6.1 marapurense '
+VERSION = '1.6.2 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -583,6 +583,12 @@ class Pdf2PdfOcr:
         self.path_qpdf = shutil.which(self.cmd_qpdf)
         if self.path_qpdf is None:
             self.log("External tool 'qpdf' not available. Merge can be slow")
+        else:
+            qpdf_version = self.get_qpdf_version()
+            minimum_version = "8.4.1"
+            if qpdf_version < LooseVersion(minimum_version):
+                self.log("External tool 'qpdf' is not on minimum version ({0}). Merge can be slow".format(minimum_version))
+                self.path_qpdf = None
         #
 
     def debug(self, param):
@@ -1113,6 +1119,18 @@ This software is free, but if you like it, please donate to support new features
         except Exception as e:
             self.log("Error checking tesseract version. Trying to continue assuming legacy version 3. Exception was {0}".format(e))
             return 3
+
+    def get_qpdf_version(self):
+        try:
+            version_info = subprocess.check_output([self.path_qpdf, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            version_info = version_info[2]
+            l_version_info = LooseVersion(version_info)
+            self.log("Qpdf version: {0}".format(l_version_info))
+            return l_version_info
+        except Exception as e:
+            legacy_version = "8.4.0"
+            self.log("Error checking qpdf version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
+            return LooseVersion(legacy_version)
 
     def calculate_ranges(self):
         """
