@@ -23,6 +23,12 @@ verbose_mode = False  # Used for debug
 
 
 def debug(param):
+    """
+    Print debug information.
+
+    Args:
+        param: (todo): write your description
+    """
     try:
         if verbose_mode:
             tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')

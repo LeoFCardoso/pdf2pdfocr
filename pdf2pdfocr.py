@@ -46,6 +46,11 @@ VERSION = '1.6.2 marapurense '
 
 
 def eprint(*args, **kwargs):
+    """
+    Print a message to stderr to stderr.
+
+    Args:
+    """
     print(*args, file=sys.stderr, flush=True, **kwargs)
 
 
@@ -223,6 +228,12 @@ def do_rebuild(param_image_file, param_path_convert, param_convert_params, param
 
 
 def percentual_float(x):
+    """
+    Returns the percentage of a float.
+
+    Args:
+        x: (todo): write your description
+    """
     x = float(x)
     if x <= 0.0 or x > 1.0:
         raise argparse.ArgumentTypeError("%r not in range (0.0, 1.0]" % (x,))
@@ -243,6 +254,14 @@ class HocrTransform:
     """
 
     def __init__(self, hocr_file_name, dpi):
+        """
+        Initialize the namedtuple.
+
+        Args:
+            self: (todo): write your description
+            hocr_file_name: (str): write your description
+            dpi: (todo): write your description
+        """
         self.rect = namedtuple('Rect', ['x1', 'y1', 'x2', 'y2'])
         self.dpi = dpi
         self.boxPattern = re.compile(r'bbox((\s+\d+){4})')
@@ -452,6 +471,12 @@ class Pdf2PdfOcr:
     """Temp dir"""
 
     def __init__(self, args):
+        """
+        Initialize the parser.
+
+        Args:
+            self: (todo): write your description
+        """
         super().__init__()
         self.verbose_mode = args.verbose_mode
         self.check_external_tools()
@@ -592,6 +617,13 @@ class Pdf2PdfOcr:
         #
 
     def debug(self, param):
+        """
+        Print debug information.
+
+        Args:
+            self: (todo): write your description
+            param: (todo): write your description
+        """
         try:
             if self.verbose_mode:
                 tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -600,6 +632,13 @@ class Pdf2PdfOcr:
             pass
 
     def log(self, param):
+        """
+        Log a parameter
+
+        Args:
+            self: (todo): write your description
+            param: (todo): write your description
+        """
         try:
             tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
             print("[{0}] [LOG] {1}".format(tstamp, param), flush=True)
@@ -607,6 +646,12 @@ class Pdf2PdfOcr:
             pass
 
     def cleanup(self):
+        """
+        Deletes all files.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.delete_temps:
             # All with PREFIX on temp files
             for f in glob.glob(self.tmp_dir + "*" + self.prefix + "*.*"):
@@ -619,6 +664,12 @@ class Pdf2PdfOcr:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
     def ocr(self):
+        """
+        Perform the pdf images
+
+        Args:
+            self: (todo): write your description
+        """
         self.log("Welcome to pdf2pdfocr version {0} - https://github.com/LeoFCardoso/pdf2pdfocr".format(VERSION))
         self.detect_file_type()
         if self.input_file_type == "application/pdf":
@@ -680,6 +731,16 @@ This software is free, but if you like it, please donate to support new features
         self.log(success_message)
 
     def _merge_ocr(self, image_pdf_file_path, text_pdf_file_path, result_pdf_file_path, tag):
+        """
+        Merge two images. _merge.
+
+        Args:
+            self: (todo): write your description
+            image_pdf_file_path: (str): write your description
+            text_pdf_file_path: (str): write your description
+            result_pdf_file_path: (str): write your description
+            tag: (str): write your description
+        """
         # Merge OCR background PDF into the main PDF document making a PDF sandwich
         self.debug("Merging with OCR")
         if self.path_qpdf is not None:
@@ -714,6 +775,12 @@ This software is free, but if you like it, please donate to support new features
             pmulti.wait()
 
     def build_final_output(self):
+        """
+        Builds the output directory.
+
+        Args:
+            self: (todo): write your description
+        """
         # Start building final PDF.
         # First, should we rebuild source file?
         rebuild_pdf_from_images = False
@@ -736,6 +803,12 @@ This software is free, but if you like it, please donate to support new features
             exit(1)
 
     def rebuild_and_merge(self):
+        """
+        Rebuilds the image images.
+
+        Args:
+            self: (todo): write your description
+        """
         eprint("Warning: metadata wiped from final PDF file (original file is not an unprotected PDF / "
                "forcing rebuild from extracted images / using deskew)")
         # Convert presets
@@ -795,6 +868,12 @@ This software is free, but if you like it, please donate to support new features
                         (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "rebuild-merge")
 
     def try_repair_input_and_merge(self):
+        """
+        Try to merge the contents of a - place.
+
+        Args:
+            self: (todo): write your description
+        """
         self.debug("Fail to merge source PDF with extracted OCR text. Trying to fix source PDF to build final file...")
         prepair1 = subprocess.Popen(
             [self.path_pdf2ps, self.input_file, self.tmp_dir + self.prefix + "-fixPDF.ps"],
@@ -814,6 +893,12 @@ This software is free, but if you like it, please donate to support new features
                         (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "repair_input")
 
     def create_text_output(self):
+        """
+        Create the text output.
+
+        Args:
+            self: (todo): write your description
+        """
         # Create final text output
         if self.create_text_mode:
             text_files = sorted(glob.glob(self.tmp_dir + self.prefix + "*.txt"))
@@ -828,6 +913,12 @@ This software is free, but if you like it, please donate to support new features
             self.log("Created final text file")
 
     def join_ocred_pdf(self):
+        """
+        Join pdf *
+
+        Args:
+            self: (todo): write your description
+        """
         # Join PDF files into one file that contains all OCR "backgrounds"
         text_pdf_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "pdf")))
         self.debug("We have {0} ocr'ed files".format(len(text_pdf_file_list)))
@@ -845,6 +936,13 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Joined ocr'ed PDF files")
 
     def external_ocr(self, image_file_list):
+        """
+        Execute external external.
+
+        Args:
+            self: (todo): write your description
+            image_file_list: (str): write your description
+        """
         self.log("Starting OCR with {0}...".format(self.ocr_engine))
         ocr_pool = multiprocessing.Pool(self.cpu_to_use)
         if self.ocr_engine == "cuneiform":
@@ -877,6 +975,13 @@ This software is free, but if you like it, please donate to support new features
         self.log("OCR completed")
 
     def autorotate_info(self, image_file_list):
+        """
+        Autorotate image info.
+
+        Args:
+            self: (todo): write your description
+            image_file_list: (str): write your description
+        """
         if self.use_autorotate:
             self.debug("Calculating autorotate values...")
             autorotate_pool = multiprocessing.Pool(self.cpu_to_use)
@@ -894,6 +999,12 @@ This software is free, but if you like it, please donate to support new features
             #
 
     def autorotate_final_output(self):
+        """
+        Autorotototot_output_file
+
+        Args:
+            self: (todo): write your description
+        """
         param_source_file = self.tmp_dir + self.prefix + "-OUTPUT.pdf"
         param_dest_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
         # method "autorotate_info" generated these OSD files
@@ -944,6 +1055,13 @@ This software is free, but if you like it, please donate to support new features
     #
 
     def deskew(self, image_file_list):
+        """
+        Deserialize image file
+
+        Args:
+            self: (todo): write your description
+            image_file_list: (str): write your description
+        """
         if self.use_deskew_mode:
             self.debug("Applying deskew (will rebuild final PDF file)")
             deskew_pool = multiprocessing.Pool(self.cpu_to_use)
@@ -955,6 +1073,12 @@ This software is free, but if you like it, please donate to support new features
                 time.sleep(5)
 
     def convert_input_to_images(self):
+        """
+        Convert images to pdf.
+
+        Args:
+            self: (todo): write your description
+        """
         self.log("Converting input file to images...")
         if self.input_file_type == "application/pdf":
             parallel_page_ranges = self.calculate_ranges()
@@ -985,11 +1109,23 @@ This software is free, but if you like it, please donate to support new features
                 exit(1)
 
     def initial_cleanup(self):
+        """
+        Initializes the best fit.
+
+        Args:
+            self: (todo): write your description
+        """
         Pdf2PdfOcr.best_effort_remove(self.output_file)
         if self.create_text_mode:
             Pdf2PdfOcr.best_effort_remove(self.output_file_text)
 
     def define_output_files(self):
+        """
+        Define the output file.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.force_out_file_mode:
             self.output_file = self.force_out_file
         else:
@@ -1012,6 +1148,12 @@ This software is free, but if you like it, please donate to support new features
             exit(1)
 
     def validate_pdf_input_file(self):
+        """
+        Validate pdf input file.
+
+        Args:
+            self: (todo): write your description
+        """
         try:
             pdf_file_obj = open(self.input_file, 'rb')
             pdf_reader = PyPDF2.PdfFileReader(pdf_file_obj, strict=False)
@@ -1046,6 +1188,12 @@ This software is free, but if you like it, please donate to support new features
             exit(1)
 
     def check_avoid_high_pages(self):
+        """
+        Check if the pages that the same.
+
+        Args:
+            self: (todo): write your description
+        """
         if self.input_file_number_of_pages is not None and self.avoid_high_pages_mode \
                 and self.input_file_number_of_pages > self.avoid_high_pages_pages:
             eprint("Input file has {0} pages and maximum for process in avoid high number of pages mode (-b) is {1}. "
@@ -1098,6 +1246,12 @@ This software is free, but if you like it, please donate to support new features
             return False
 
     def test_tesseract_textonly_pdf(self):
+        """
+        Test for tesseracteract on - tesseracteracter.
+
+        Args:
+            self: (todo): write your description
+        """
         result = False
         try:
             result = ('textonly_pdf' in subprocess.check_output([self.path_tesseract, '--print-parameters'], universal_newlines=True))
@@ -1108,6 +1262,12 @@ This software is free, but if you like it, please donate to support new features
         return result
 
     def get_tesseract_version(self):
+        """
+        Get the version of the tesseractacter.
+
+        Args:
+            self: (todo): write your description
+        """
         # Inspired by the great lib 'pytesseract' - https://github.com/madmaze/pytesseract/blob/master/src/pytesseract.py
         try:
             version_info = subprocess.check_output([self.path_tesseract, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
@@ -1121,6 +1281,12 @@ This software is free, but if you like it, please donate to support new features
             return 3
 
     def get_qpdf_version(self):
+        """
+        Return qpdf version.
+
+        Args:
+            self: (todo): write your description
+        """
         try:
             version_info = subprocess.check_output([self.path_qpdf, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
@@ -1160,6 +1326,12 @@ This software is free, but if you like it, please donate to support new features
         return result
 
     def edit_producer(self):
+        """
+        Edit all : class : class : return :
+
+        Args:
+            self: (todo): write your description
+        """
         self.debug("Editing producer")
         param_source_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
         file_source = open(param_source_file, 'rb')
@@ -1204,6 +1376,12 @@ This software is free, but if you like it, please donate to support new features
 
     @staticmethod
     def best_effort_remove(filename):
+        """
+        Removes the best error.
+
+        Args:
+            filename: (str): write your description
+        """
         try:
             os.remove(filename)
         except OSError as e:
@@ -1295,6 +1473,11 @@ Examples:
 
     # Signal handling
     def sigint_handler(*args):
+        """
+        Handle sigint signal handler.
+
+        Args:
+        """
         pdf2ocr.cleanup()
         exit(1)
 

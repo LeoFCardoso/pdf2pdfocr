@@ -28,6 +28,12 @@ __author__ = 'Leonardo F. Cardoso'
     terminal_panel_color="#FF9100",
 )
 def show_gui(p_input_file_argument):
+    """
+    Show gui.
+
+    Args:
+        p_input_file_argument: (str): write your description
+    """
     parser = GooeyParser(description="https://github.com/LeoFCardoso/pdf2pdfocr")
     #
     files_group = parser.add_argument_group("Files", gooey_options={'columns': 1})
