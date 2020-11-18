@@ -42,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.6.2 marapurense '
+VERSION = '1.6.3 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -626,6 +626,7 @@ class Pdf2PdfOcr:
         self.define_output_files()
         self.initial_cleanup()
         self.convert_input_to_images()
+        # TODO - create param to user pass input page range for OCR
         image_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, self.extension_images)))
         if self.input_file_number_of_pages is None:
             self.input_file_number_of_pages = len(image_file_list)
@@ -683,10 +684,14 @@ This software is free, but if you like it, please donate to support new features
         # Merge OCR background PDF into the main PDF document making a PDF sandwich
         self.debug("Merging with OCR")
         if self.path_qpdf is not None:
-            with open(image_pdf_file_path, "rb") as img_f:
-                img_data = PyPDF2.PdfFileReader(img_f, strict=False)
-                first_page_img_rect = img_data.getPage(0).mediaBox
-                first_page_img_area = first_page_img_rect.getWidth() * first_page_img_rect.getHeight()
+            try:
+                with open(image_pdf_file_path, "rb") as img_f:
+                    img_data = PyPDF2.PdfFileReader(img_f, strict=False)
+                    first_page_img_rect = img_data.getPage(0).mediaBox
+                    first_page_img_area = first_page_img_rect.getWidth() * first_page_img_rect.getHeight()
+            except PyPDF2.utils.PdfReadError:
+                eprint("Warning: could not read input file page geometry. Merge may fail, please check input file.")
+                first_page_img_area = 0
             with open(text_pdf_file_path, "rb") as txt_f:
                 txt_data = PyPDF2.PdfFileReader(txt_f, strict=False)
                 first_page_txt_rect = txt_data.getPage(0).mediaBox
