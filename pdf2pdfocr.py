@@ -42,7 +42,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.6.3 marapurense '
+VERSION = '1.7.0 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -499,8 +499,9 @@ class Pdf2PdfOcr:
         if self.text_generation_strategy not in ["tesseract", "native"]:
             eprint("{0} is not a valid text generation strategy. Exiting.".format(self.text_generation_strategy))
             exit(1)
+        self.ocr_ignored = False
         self.ocr_engine = args.ocr_engine
-        if self.ocr_engine not in ["tesseract", "cuneiform"]:
+        if self.ocr_engine not in ["tesseract", "cuneiform", "no_ocr"]:
             eprint("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
             exit(1)
         self.extra_ocr_flag = args.extra_ocr_flag
@@ -623,6 +624,7 @@ class Pdf2PdfOcr:
         self.detect_file_type()
         if self.input_file_type == "application/pdf":
             self.validate_pdf_input_file()
+        self.debug("Conversion params: {0}".format(self.user_convert_params))
         self.define_output_files()
         self.initial_cleanup()
         self.convert_input_to_images()
@@ -635,8 +637,9 @@ class Pdf2PdfOcr:
         self.autorotate_info(image_file_list)
         self.deskew(image_file_list)
         self.external_ocr(image_file_list)
-        self.join_ocred_pdf()
-        self.create_text_output()
+        if not self.ocr_ignored:
+            self.join_ocred_pdf()
+            self.create_text_output()
         self.build_final_output()
         self.autorotate_final_output()
         #
@@ -726,12 +729,17 @@ This software is free, but if you like it, please donate to support new features
             rebuild_pdf_from_images = True
         #
         if (not rebuild_pdf_from_images) and (not self.force_rebuild_mode):
-            self._merge_ocr(self.input_file, (self.tmp_dir + self.prefix + "-ocr.pdf"), (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "final-output")
-            #
-            # Try to handle fail.
-            # The code below try to rewrite source PDF and try again.
-            if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
-                self.try_repair_input_and_merge()
+            if not self.ocr_ignored:
+                self._merge_ocr(self.input_file, (self.tmp_dir + self.prefix + "-ocr.pdf"), (self.tmp_dir + self.prefix + "-OUTPUT.pdf"),
+                                "final-output")
+                #
+                # Try to handle fail.
+                # The code below try to rewrite source PDF and try again.
+                if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
+                    self.try_repair_input_and_merge()
+            else:
+                # OCR ignored
+                shutil.copyfile(self.input_file, (self.tmp_dir + self.prefix + "-OUTPUT.pdf"))
         else:
             self.rebuild_and_merge()
         #
@@ -776,10 +784,13 @@ This software is free, but if you like it, please donate to support new features
                                                           itertools.repeat(convert_params),
                                                           itertools.repeat(self.tmp_dir),
                                                           itertools.repeat(self.shell_mode)))
+        rebuild_wait_rounds = 0
         while not rebuild_pool_map.ready():
+            rebuild_wait_rounds += 1
             pages_processed = len(glob.glob(self.tmp_dir + "REBUILD_" + self.prefix + "*.pdf"))
-            self.log("Waiting for PDF rebuild to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
-            time.sleep(5)
+            if rebuild_wait_rounds % 10 == 0:
+                self.log("Waiting for PDF rebuild to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+            time.sleep(0.5)
         #
         rebuilt_pdf_file_list = sorted(glob.glob(self.tmp_dir + "REBUILD_{0}*.pdf".format(self.prefix)))
         self.debug("We have {0} rebuilt PDF files".format(len(rebuilt_pdf_file_list)))
@@ -795,9 +806,12 @@ This software is free, but if you like it, please donate to support new features
             exit(1)
         self.debug("PDF rebuilding completed")
         #
-        self._merge_ocr((self.tmp_dir + self.prefix + "-input_unprotected.pdf"),
-                        (self.tmp_dir + self.prefix + "-ocr.pdf"),
-                        (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "rebuild-merge")
+        if not self.ocr_ignored:
+            self._merge_ocr((self.tmp_dir + self.prefix + "-input_unprotected.pdf"),
+                            (self.tmp_dir + self.prefix + "-ocr.pdf"),
+                            (self.tmp_dir + self.prefix + "-OUTPUT.pdf"), "rebuild-merge")
+        else:
+            shutil.copyfile((self.tmp_dir + self.prefix + "-input_unprotected.pdf"), (self.tmp_dir + self.prefix + "-OUTPUT.pdf"))
 
     def try_repair_input_and_merge(self):
         self.debug("Fail to merge source PDF with extracted OCR text. Trying to fix source PDF to build final file...")
@@ -850,36 +864,43 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Joined ocr'ed PDF files")
 
     def external_ocr(self, image_file_list):
-        self.log("Starting OCR with {0}...".format(self.ocr_engine))
-        ocr_pool = multiprocessing.Pool(self.cpu_to_use)
-        if self.ocr_engine == "cuneiform":
-            ocr_pool_map = ocr_pool.starmap_async(do_ocr_cuneiform,
-                                                  zip(image_file_list,
-                                                      itertools.repeat(self.extra_ocr_flag),
-                                                      itertools.repeat(self.tess_langs),
-                                                      itertools.repeat(self.tmp_dir),
-                                                      itertools.repeat(self.shell_mode),
-                                                      itertools.repeat(self.path_cuneiform)))
-        if self.ocr_engine == "tesseract":
-            ocr_pool_map = ocr_pool.starmap_async(do_ocr_tesseract,
-                                                  zip(image_file_list,
-                                                      itertools.repeat(self.extra_ocr_flag),
-                                                      itertools.repeat(self.tess_langs),
-                                                      itertools.repeat(self.tess_psm),
-                                                      itertools.repeat(self.tmp_dir),
-                                                      itertools.repeat(self.shell_mode),
-                                                      itertools.repeat(self.path_tesseract),
-                                                      itertools.repeat(self.text_generation_strategy),
-                                                      itertools.repeat(self.delete_temps),
-                                                      itertools.repeat(self.tesseract_can_textonly_pdf)))
-        #
-        while not ocr_pool_map.ready():
-            pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.tmp"))
-            self.log("Waiting for OCR to complete. {0}/{1} pages completed...".format(pages_processed,
-                                                                                      self.input_file_number_of_pages))
-            time.sleep(5)
-        #
-        self.log("OCR completed")
+        if self.ocr_engine in ["cuneiform", "tesseract"]:
+            self.log("Starting OCR with {0}...".format(self.ocr_engine))
+            ocr_pool = multiprocessing.Pool(self.cpu_to_use)
+            if self.ocr_engine == "cuneiform":
+                ocr_pool_map = ocr_pool.starmap_async(do_ocr_cuneiform,
+                                                      zip(image_file_list,
+                                                          itertools.repeat(self.extra_ocr_flag),
+                                                          itertools.repeat(self.tess_langs),
+                                                          itertools.repeat(self.tmp_dir),
+                                                          itertools.repeat(self.shell_mode),
+                                                          itertools.repeat(self.path_cuneiform)))
+            if self.ocr_engine == "tesseract":
+                ocr_pool_map = ocr_pool.starmap_async(do_ocr_tesseract,
+                                                      zip(image_file_list,
+                                                          itertools.repeat(self.extra_ocr_flag),
+                                                          itertools.repeat(self.tess_langs),
+                                                          itertools.repeat(self.tess_psm),
+                                                          itertools.repeat(self.tmp_dir),
+                                                          itertools.repeat(self.shell_mode),
+                                                          itertools.repeat(self.path_tesseract),
+                                                          itertools.repeat(self.text_generation_strategy),
+                                                          itertools.repeat(self.delete_temps),
+                                                          itertools.repeat(self.tesseract_can_textonly_pdf)))
+            #
+            ocr_rounds = 0
+            while not ocr_pool_map.ready():
+                ocr_rounds += 1
+                pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.tmp"))
+                if ocr_rounds % 10 == 0:
+                    self.log("Waiting for OCR to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+                time.sleep(0.5)
+            #
+            self.log("OCR completed")
+            self.ocr_ignored = False
+        else:
+            self.log("OCR ignored")
+            self.ocr_ignored = True
 
     def autorotate_info(self, image_file_list):
         if self.use_autorotate:
@@ -892,10 +913,13 @@ This software is free, but if you like it, please donate to support new features
                                                                     itertools.repeat(self.tess_langs),
                                                                     itertools.repeat(self.path_tesseract),
                                                                     itertools.repeat(self.tesseract_version)))
+            autorotate_rounds = 0
             while not autorotate_pool_map.ready():
+                autorotate_rounds += 1
                 pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.osd"))
-                self.log("Waiting for autorotate to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
-                time.sleep(5)
+                if autorotate_rounds % 10 == 0:
+                    self.log("Waiting for autorotate. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+                time.sleep(0.5)
             #
 
     def autorotate_final_output(self):
@@ -946,18 +970,19 @@ This software is free, but if you like it, please donate to support new features
             self.debug("Autorotate skipped")
             os.rename(param_source_file, param_dest_file)
 
-    #
-
     def deskew(self, image_file_list):
         if self.use_deskew_mode:
             self.debug("Applying deskew (will rebuild final PDF file)")
             deskew_pool = multiprocessing.Pool(self.cpu_to_use)
             deskew_pool_map = deskew_pool.starmap_async(do_deskew, zip(image_file_list, itertools.repeat(self.deskew_threshold),
                                                                        itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
+            deskew_wait_rounds = 0
             while not deskew_pool_map.ready():
+                deskew_wait_rounds += 1
                 pages_processed = len([x for x in deskew_pool_map._value if x is not None])
-                self.log("Waiting for deskew to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
-                time.sleep(5)
+                if deskew_wait_rounds % 10 == 0:
+                    self.log("Waiting for deskew to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
+                time.sleep(0.5)
 
     def convert_input_to_images(self):
         self.log("Converting input file to images...")
@@ -1232,7 +1257,9 @@ if __name__ == '__main__':
                                help="path for input file")
     #
     parser.add_argument("-c", dest="ocr_engine", action="store", default="tesseract", type=str,
-                        help="specify OCR engine (tesseract, cuneiform). Default: tesseract")
+                        help="specify OCR engine (tesseract, cuneiform, no_ocr). "
+                             "Use no_ocr to skip OCR (for example, to test -f/-g configurations). "
+                             "Default: tesseract")
     parser.add_argument("-s", dest="safe_mode", action="store_true", default=False,
                         help="safe mode. Does not overwrite output [PDF | TXT] OCR file")
     parser.add_argument("-t", dest="check_text_mode", action="store_true", default=False,
@@ -1245,7 +1272,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", dest="force_rebuild_mode", action="store_true", default=False,
                         help="force PDF rebuild from extracted images")
     # Escape % wiht %%
-    option_g_help = """with images or '-f', use presets or force parameters when calling 'convert' to build the final PDF file
+    option_g_help = """with image input or '-f', use presets or force parameters when calling 'convert' to build the final PDF file
 Examples:
     -g fast -> a fast bitonal file ("-threshold 60%% -compress Group4")
     -g best -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60%% -compress Group4")

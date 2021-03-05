@@ -57,22 +57,23 @@ def show_gui(p_input_file_argument):
     rebuild_options = parser.add_argument_group("Rebuild options", gooey_options={'columns': 1})
     rebuild_options.add_argument("-f", dest="force_rebuild_mode", metavar='Force rebuild (-f)', action="store_true", default=False,
                                  help="Force PDF rebuild from extracted images ")
-    option_g_help = """With images or '-f', use presets or force parameters when calling 'convert' to build the final PDF file
-    Examples:
-        -g fast -> a fast bitonal file ("-threshold 60% -compress Group4")
-        -g best -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
-        -g grayscale -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
-        -g jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG")
-        -g jpeg2000 -> keep original color image as JPEG2000 ("-quality 32% -compress JPEG2000")
-        -g="-threshold 60% -compress Group4" -> direct apply these parameters (USE EQUAL SIGN AND QUOTATION MARKS)
+    option_g_help = """With image input or '-f', use presets or force parameters when calling 'convert' to build the final PDF file:
+        fast -> a fast bitonal file ("-threshold 60% -compress Group4")
+        best -> best quality, but bigger bitonal file ("-colors 2 -colorspace gray -normalize -threshold 60% -compress Group4")
+        grayscale -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
+        jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG")
+        jpeg2000 -> keep original color image as JPEG2000 ("-quality 32% -compress JPEG2000")
+        or use custom parameters directly (USE SPACE CHAR FIRST)
         Note, without -g, preset 'best' is used
     """
     rebuild_options.add_argument("-g", dest="convert_params", metavar='Force params (-g)', action="store", default="",
-                                 help=option_g_help, widget="Dropdown", choices=["", "fast", "best", "grayscale", "jpeg", "jpeg2000"])
+                                 help=option_g_help, widget="Dropdown",
+                                 choices=["", "fast", "best", "grayscale", "jpeg", "jpeg2000",
+                                          " -custom_params (to use custom params, please keep the first space char)"])
     #
     advanced_options = parser.add_argument_group("Advanced options")
     advanced_options.add_argument("-c", dest="ocr_engine", metavar='OCR engine (-c)', action="store", type=str, default="tesseract",
-                                  help="select the OCR engine to use ", widget="Dropdown", choices=["tesseract", "cuneiform"])
+                                  help="select the OCR engine to use ", widget="Dropdown", choices=["tesseract", "cuneiform", "no_ocr"])
     advanced_options.add_argument("-j", dest="parallel_percent", metavar='Parallel (-j)', action="store", type=float, default=1.0,
                                   help="run this percentual jobs in parallel (0 - 1.0]\nmultiply with the number of CPU cores, default = 1 [all "
                                        "cores] ")
