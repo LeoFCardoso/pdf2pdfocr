@@ -63,12 +63,13 @@ def show_gui(p_input_file_argument):
         grayscale -> good bitonal file from grayscale documents ("-threshold 85% -morphology Dilate Diamond -compress Group4")
         jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG")
         jpeg2000 -> keep original color image as JPEG2000 ("-quality 32% -compress JPEG2000")
+        smart -> try to autodetect colors and use 'jpeg' preset if one color page is detected, otherwise use preset 'best'
         or use custom parameters directly (USE SPACE CHAR FIRST)
         Note, without -g, preset 'best' is used
     """
     rebuild_options.add_argument("-g", dest="convert_params", metavar='Force params (-g)', action="store", default="",
                                  help=option_g_help, widget="Dropdown",
-                                 choices=["", "fast", "best", "grayscale", "jpeg", "jpeg2000",
+                                 choices=["", "fast", "best", "grayscale", "jpeg", "jpeg2000", "smart",
                                           " -custom_params (to use custom params, please keep the first space char)"])
     #
     advanced_options = parser.add_argument_group("Advanced options")

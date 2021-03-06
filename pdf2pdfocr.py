@@ -35,6 +35,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import PyPDF2
+from PIL import Image, ImageChops
 from PyPDF2.generic import ByteStringObject
 from bs4 import BeautifulSoup
 from reportlab.lib.units import inch
@@ -42,7 +43,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.7.0 marapurense '
+VERSION = '1.7.1 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -220,6 +221,22 @@ def do_rebuild(param_image_file, param_path_convert, param_convert_params, param
         stderr=open(param_tmp_dir + "convert_err_{0}.log".format(param_image_no_ext), "wb"),
         shell=param_shell_mode)
     prebuild.wait()
+
+
+def do_check_img_greyscale(param_image_file):
+    """
+    Inspired in code provided by karl-k:
+    https://stackoverflow.com/questions/23660929/how-to-check-whether-a-jpeg-image-is-color-or-gray-scale-using-only-python-stdli
+    Check if image is monochrome (1 channel or 3 identical channels)
+    """
+    im = Image.open(param_image_file).convert('RGB')
+    rgb = im.split()
+    if ImageChops.difference(rgb[0], rgb[1]).getextrema()[1] != 0:
+        return False
+    if ImageChops.difference(rgb[0], rgb[2]).getextrema()[1] != 0:
+        return False
+    #
+    return True
 
 
 def percentual_float(x):
@@ -759,6 +776,25 @@ This software is free, but if you like it, please donate to support new features
         preset_jpeg = "-strip -interlace Plane -gaussian-blur 0.05 -quality 50% -compress JPEG"
         preset_jpeg2000 = "-quality 32% -compress JPEG2000"
         #
+        rebuild_list = sorted(glob.glob(self.tmp_dir + self.prefix + "*." + self.extension_images))
+        #
+        if self.user_convert_params == "smart":
+            checkimg_pool = multiprocessing.Pool(self.cpu_to_use)
+            checkimg_pool_map = checkimg_pool.starmap_async(do_check_img_greyscale, zip(rebuild_list))
+            checkimg_wait_rounds = 0
+            while not checkimg_pool_map.ready():
+                checkimg_wait_rounds += 1
+                if checkimg_wait_rounds % 10 == 0:
+                    self.log("Checking page colors...")
+                time.sleep(0.5)
+            result_check_img = checkimg_pool_map.get()
+            if all(result_check_img):
+                self.log("No color pages detected. Smart mode will use 'best' preset.")
+                self.user_convert_params = "best"
+            else:
+                self.log("Color pages detected. Smart mode will use 'jpeg' preset.")
+                self.user_convert_params = "jpeg"
+        #
         if self.user_convert_params == "fast":
             convert_params = preset_fast
         elif self.user_convert_params == "best":
@@ -776,7 +812,6 @@ This software is free, but if you like it, please donate to support new features
             convert_params = preset_best
         #
         self.log("Rebuilding PDF from images")
-        rebuild_list = sorted(glob.glob(self.tmp_dir + self.prefix + "*." + self.extension_images))
         rebuild_pool = multiprocessing.Pool(self.cpu_to_use)
         rebuild_pool_map = rebuild_pool.starmap_async(do_rebuild,
                                                       zip(rebuild_list,
@@ -1279,6 +1314,7 @@ Examples:
     -g grayscale -> good bitonal file from grayscale documents ("-threshold 85%% -morphology Dilate Diamond -compress Group4")
     -g jpeg -> keep original color image as JPEG ("-strip -interlace Plane -gaussian-blur 0.05 -quality 50%% -compress JPEG")
     -g jpeg2000 -> keep original color image as JPEG2000 ("-quality 32%% -compress JPEG2000")
+    -g smart -> try to autodetect colors and use 'jpeg' preset if one color page is detected, otherwise use preset 'best'
     -g="-threshold 60%% -compress Group4" -> direct apply these parameters (DON'T FORGET TO USE EQUAL SIGN AND QUOTATION MARKS)
     Note, without -g, preset 'best' is used"""
     parser.add_argument("-g", dest="convert_params", action="store", default="",
