@@ -686,6 +686,7 @@ class Pdf2PdfOcr:
         tippin_donate_link = "https://tippin.me/@LeoFCardoso"
         bitcoin_address = "173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ"
         dogecoin_address = "D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG"
+        pix_key = "0726e8f2-7e59-488a-8abb-bda8f0d7d9ce"
         success_message = """Success!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
@@ -696,8 +697,9 @@ This software is free, but if you like it, please donate to support new features
 {2}
 ---> Bitcoin (BTC) address: {3}
 ---> Dogecoin (DOGE) address: {4}
+---> PIX (Brazilian Instant Payments) key: {5}
 ---> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(
-            paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address)
+            paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address, pix_key)
         self.log(success_message)
 
     def _merge_ocr(self, image_pdf_file_path, text_pdf_file_path, result_pdf_file_path, tag):
