@@ -18,6 +18,10 @@ Tips are also welcome!
 
 Dogecoin (DOGE) address: [D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG](https://blockchair.com/dogecoin/address/D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG)
 
+PIX (Brazilian Instant Payments): 0726e8f2-7e59-488a-8abb-bda8f0d7d9ce
+
+[![chave PIX](https://raw.githubusercontent.com/LeoFCardoso/pdf2pdfocr/master/pix_qrcode.png)](https://nubank.com.br/pagar/414xb/ndt4lfy9GT)
+
 Please contact for donations and tips in other cryptocurrencies.
 
 # installation
