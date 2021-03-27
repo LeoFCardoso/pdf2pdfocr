@@ -2,7 +2,7 @@
 #
 # Dockerfile version 5.0
 #
-FROM ubuntu:19.10
+FROM ubuntu:20.04
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
 
 RUN useradd docker \
