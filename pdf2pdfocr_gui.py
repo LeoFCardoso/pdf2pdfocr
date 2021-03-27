@@ -26,6 +26,7 @@ __author__ = 'Leonardo F. Cardoso'
     footer_bg_color="#FF9100",
     sidebar_bg_color="#FF9100",
     terminal_panel_color="#FF9100",
+    suppress_gooey_flag=True,
 )
 def show_gui(p_input_file_argument):
     parser = GooeyParser(description="https://github.com/LeoFCardoso/pdf2pdfocr")
@@ -45,6 +46,8 @@ def show_gui(p_input_file_argument):
                                help="Does not process if source PDF is protected ")
     basic_options.add_argument("-b", dest="max_pages", metavar='Max pages (-b)', action="store", default=None, type=int,
                                help="Does not process if number of pages is greater than this value ")
+    basic_options.add_argument("--min-kbytes", dest="min_kbytes", metavar='Min size KB (--min_kbytes)', action="store", default=None, type=int,
+                               help="Does not process if file size in KB is lower than this value ")
     basic_options.add_argument("-d", dest="deskew_percent", metavar='Deskew (-d)', action="store",
                                help="Use imagemagick deskew before OCR. Should be a percent, e.g. '40%' ")
     basic_options.add_argument("-w", dest="create_text_mode", metavar='Text file (-w)', action="store_true", default=False,

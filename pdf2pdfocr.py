@@ -43,7 +43,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.7.1 marapurense '
+VERSION = '1.8.0 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -66,12 +66,10 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
     #
     command_line_list += ['-r', str(param_image_resolution), '-jpeg', param_input_file, param_tmp_dir + param_prefix]
     pimage = subprocess.Popen(command_line_list, stdout=subprocess.DEVNULL,
-                              stderr=open(
-                                  param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(param_prefix, first_page,
-                                                                                        last_page),
-                                  "wb"),
+                              stderr=open(param_tmp_dir + "pdftoppm_err_{0}-{1}-{2}.log".format(param_prefix, first_page, last_page), "wb"),
                               shell=param_shell_mode)
     pimage.wait()
+    return pimage.returncode
 
 
 def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract, param_tesseract_version):
@@ -478,6 +476,8 @@ class Pdf2PdfOcr:
         self.check_protection_mode = args.check_protection_mode
         self.avoid_high_pages_mode = args.max_pages is not None
         self.avoid_high_pages_pages = args.max_pages
+        self.avoid_small_file_mode = args.min_kbytes is not None
+        self.avoid_small_file_limit_kb = args.min_kbytes
         self.force_rebuild_mode = args.force_rebuild_mode
         self.user_convert_params = args.convert_params
         if self.user_convert_params is None:
@@ -587,6 +587,8 @@ class Pdf2PdfOcr:
         if self.path_pdftoppm is None:
             eprint("pdftoppm (poppler) not found. Aborting...")
             exit(1)
+        if self.get_pdftoppm_version() <= LooseVersion("0.70.0"):
+            self.log("External tool 'pdftoppm' is outdated. Please upgrade poppler")
         #
         self.path_pdffonts = shutil.which(self.cmd_pdffonts)
         if self.path_pdffonts is None:
@@ -638,6 +640,7 @@ class Pdf2PdfOcr:
 
     def ocr(self):
         self.log("Welcome to pdf2pdfocr version {0} - https://github.com/LeoFCardoso/pdf2pdfocr".format(VERSION))
+        self.check_avoid_file_by_size()
         self.detect_file_type()
         if self.input_file_type == "application/pdf":
             self.validate_pdf_input_file()
@@ -1028,17 +1031,23 @@ This software is free, but if you like it, please donate to support new features
             if parallel_page_ranges is not None:
                 pdfimage_pool = multiprocessing.Pool(self.cpu_to_use)
                 # TODO - try to use method inside this class (encapsulate do_pdftoimage)
-                pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
-                                                         parallel_page_ranges,
-                                                         itertools.repeat(self.input_file),
-                                                         itertools.repeat(self.image_resolution),
-                                                         itertools.repeat(self.tmp_dir),
-                                                         itertools.repeat(self.prefix),
-                                                         itertools.repeat(self.shell_mode)))
+                do_pdftoimage_result_codes = pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
+                                                                                      parallel_page_ranges,
+                                                                                      itertools.repeat(self.input_file),
+                                                                                      itertools.repeat(self.image_resolution),
+                                                                                      itertools.repeat(self.tmp_dir),
+                                                                                      itertools.repeat(self.prefix),
+                                                                                      itertools.repeat(self.shell_mode)))
             else:
                 # Without page info, only alternative is going sequentialy (without range)
-                do_pdftoimage(self.path_pdftoppm, None, self.input_file, self.image_resolution, self.tmp_dir,
-                              self.prefix, self.shell_mode)
+                do_pdftoimage_result_code = do_pdftoimage(self.path_pdftoppm, None, self.input_file, self.image_resolution, self.tmp_dir,
+                                                          self.prefix, self.shell_mode)
+                do_pdftoimage_result_codes = [do_pdftoimage_result_code]
+            #
+            if not all(ret_code == 0 for ret_code in do_pdftoimage_result_codes):
+                eprint("Fail to create images from PDF. Exiting.")
+                self.cleanup()
+                exit(1)
         else:
             if self.input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
                 # %09d to format files for correct sort
@@ -1120,6 +1129,15 @@ This software is free, but if you like it, please donate to support new features
             self.cleanup()
             exit(1)
 
+    def check_avoid_file_by_size(self):
+        if self.avoid_small_file_mode:
+            input_file_size_kb = os.path.getsize(self.input_file) / 1024
+            if input_file_size_kb < self.avoid_small_file_limit_kb:
+                eprint("Input file has {0:.2f} KBytes and minimum size to process (--min-kbytes) is {1:.2f} KBytes. "
+                       "Exiting.".format(input_file_size_kb, self.avoid_small_file_limit_kb))
+                self.cleanup()
+                exit(1)
+
     def check_for_text(self):
         """Check if input file contains text. Actually based on pdffonts from poppler"""
         ptext = subprocess.Popen([self.path_pdffonts, self.input_file], stdout=subprocess.PIPE,
@@ -1171,7 +1189,7 @@ This software is free, but if you like it, please donate to support new features
         except Exception:
             self.log("Error checking tesseract capabilities. Trying to continue without 'textonly_pdf' in Tesseract")
         #
-        self.log("Tesseract can 'textonly_pdf': {0}".format(result))
+        self.debug("Tesseract can 'textonly_pdf': {0}".format(result))
         return result
 
     def get_tesseract_version(self):
@@ -1181,7 +1199,7 @@ This software is free, but if you like it, please donate to support new features
             version_info = version_info[1].lstrip(string.printable[10:])
             l_version_info = LooseVersion(version_info)
             result = int(l_version_info.version[0])
-            self.log("Tesseract version: {0}".format(result))
+            self.debug("Tesseract version: {0}".format(result))
             return result
         except Exception as e:
             self.log("Error checking tesseract version. Trying to continue assuming legacy version 3. Exception was {0}".format(e))
@@ -1192,11 +1210,23 @@ This software is free, but if you like it, please donate to support new features
             version_info = subprocess.check_output([self.path_qpdf, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
             l_version_info = LooseVersion(version_info)
-            self.log("Qpdf version: {0}".format(l_version_info))
+            self.debug("Qpdf version: {0}".format(l_version_info))
             return l_version_info
         except Exception as e:
             legacy_version = "8.4.0"
             self.log("Error checking qpdf version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
+            return LooseVersion(legacy_version)
+
+    def get_pdftoppm_version(self):
+        try:
+            version_info = subprocess.check_output([self.path_pdftoppm, '-v'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            version_info = version_info[2]
+            l_version_info = LooseVersion(version_info)
+            self.debug("Pdftoppm version: {0}".format(l_version_info))
+            return l_version_info
+        except Exception as e:
+            legacy_version = "0.70.0"
+            self.log("Error checking pdftoppm version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
             return LooseVersion(legacy_version)
 
     def calculate_ranges(self):
@@ -1204,7 +1234,7 @@ This software is free, but if you like it, please donate to support new features
         calculate ranges to run pdftoppm in parallel. Each CPU available will run well defined page range
         :return:
         """
-        if self.input_file_number_of_pages is None:
+        if (self.input_file_number_of_pages is None) or (self.input_file_number_of_pages < 20):  # 20 to avoid unnecessary parallel operation
             return None
         #
         range_size = math.ceil(self.input_file_number_of_pages / self.cpu_to_use)
@@ -1306,6 +1336,8 @@ if __name__ == '__main__':
     parser.add_argument("-b", dest="max_pages", action="store", default=None, type=int,
                         help="avoid high number of pages mode. Does not process if number of pages is greater "
                              "than <MAX_PAGES>")
+    parser.add_argument("--min-kbytes", dest="min_kbytes", action="store", default=None, type=int,
+                        help="avoid small files. Does not process if size of input file is lower than <min-kbytes>")
     parser.add_argument("-f", dest="force_rebuild_mode", action="store_true", default=False,
                         help="force PDF rebuild from extracted images")
     # Escape % wiht %%
@@ -1356,7 +1388,7 @@ Examples:
                         help="with successful execution, wait for user to press <Enter> at the final of the "
                              "script (default: not wait)")
     # Dummy to be called by gooey (GUI)
-    parser.add_argument("--ignore-gooey", action="store_true", default=False)
+    parser.add_argument("--ignore-gooey", action="store_true", required=False, default=False)
     #
     args = parser.parse_args()
     #
