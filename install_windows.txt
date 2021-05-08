@@ -6,7 +6,9 @@ rem --> Open new command prompt
 rem --> Please adjust to your arch (32 or 64 bit)
 rem ---------------
 scoop install --arch 64bit aria2 git
-scoop install --arch 64bit file ghostscript imagemagick poppler tesseract python qpdf
+scoop bucket add versions
+scoop install --arch 64bit file ghostscript imagemagick poppler tesseract qpdf
+scoop install --arch 64bit python38
 
 rem --> Open new command prompt to refresh environment variables
 rem ---------------
@@ -18,15 +20,26 @@ aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/por.traineddata" --
 aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/spa.traineddata" --dir="%TESSDATA_PREFIX%"
 
 rem Complete python with VENV and required libs
-rem (GUI maybe need Visual C++ for Visual Studio 2015 Runtime - https://www.microsoft.com/en-US/download/details.aspx?id=48145)
 rem ---------------
-pip install virtualenv
-virtualenv --clear --download --always-copy "%USERPROFILE%\pdf2pdfocr-venv"
+python3 -m venv "%USERPROFILE%\pdf2pdfocr-venv"
+
 cd "%USERPROFILE%\pdf2pdfocr-venv"
 .\Scripts\activate.bat
 python -m pip install --upgrade pip
-pip install reportlab Gooey
+pip install wheel setuptools
+pip install reportlab psutil
 pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
+rem [TO USE GUI]
+pip install Gooey
+rem ---------------
+rem If Gooey install fail, please install Visual C++ for Visual Studio Runtime and try again
+rem [x64] https://aka.ms/vs/16/release/vc_redist.x64.exe
+rem <OR>
+rem [x86] https://aka.ms/vs/16/release/vc_redist.x86.exe
+rem ----
+rem If Gooey install fail, please install Build Tools (needed for GUI) and try again
+rem https://visualstudio.microsoft.com/visual-cpp-build-tools/
+rem Download / Run / Check C++ Build Tools / Check MSVC v142 and Windows 10 SDK / Install
 
 rem TODO - add cuneiform command line on windows
 
@@ -41,6 +54,7 @@ aria2c "https://github.com/LeoFCardoso/pdf2pdfocr/archive/master.zip" --dir="%TE
 del %TEMP%\pdf2pdfocr.zip
 move /Y "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr-venv"
 move /Y "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
+move /Y "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\*.lnk" "%APPDATA%\Microsoft\Windows\SendTo\"
 
 rem Copy script to "scripts" inside python VENV
 rem ---------------

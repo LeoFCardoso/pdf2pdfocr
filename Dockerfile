@@ -31,7 +31,7 @@ RUN rm /etc/ImageMagick-6/policy.xml
 # Software dependencies [End]
 
 # Python 3 and deps [Start]
-RUN pip3 install --upgrade Pillow reportlab \
+RUN pip3 install --upgrade psutil Pillow reportlab \
  && pip3 install --upgrade lxml beautifulsoup4 \
  && pip3 install --upgrade wheel
 

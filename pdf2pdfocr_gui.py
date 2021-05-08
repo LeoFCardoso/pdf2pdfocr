@@ -96,6 +96,8 @@ def show_gui(p_input_file_argument):
                                   help="add extra command line flags in select OCR engine for all pages.\nUse with caution ")
     advanced_options.add_argument("-k", dest="keep_temps", metavar='Keep temps (-k)', action="store_true", default=False,
                                   help="keep temporary files for debug ")
+    advanced_options.add_argument("--timeout", dest="timeout", metavar='Timeout in seconds (--timeout)', action="store", required=False, default="",
+                                  help="run with time limit in seconds ")
     #
     return parser.parse_args()
 

@@ -47,7 +47,7 @@ In macOS, you will need macports.
     sudo port select --set python3 python37
     sudo port select --set pip pip37
     # Install libs (please ignore warning messages)
-    sudo pip3 install reportlab Gooey
+    sudo pip3 install psutil reportlab Gooey
     sudo pip3 install https://github.com/mstamy2/PyPDF2/archive/master.zip
     # Install optional libs (for cuneiform)
     sudo pip3 install lxml beautifulsoup4

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##############################################################################
-# Copyright (c) 2020: Leonardo Cardoso
+# Copyright (c) 2021: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
@@ -30,20 +30,23 @@ import sys
 import tempfile
 import time
 from collections import namedtuple
+from concurrent import futures
 from distutils.version import LooseVersion
 from pathlib import Path
 from xml.etree import ElementTree
 
 import PyPDF2
+import psutil
 from PIL import Image, ImageChops
 from PyPDF2.generic import ByteStringObject
+from PyPDF2.utils import PdfReadError
 from bs4 import BeautifulSoup
 from reportlab.lib.units import inch
 from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.8.0 marapurense '
+VERSION = '1.9.0 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -271,7 +274,7 @@ class HocrTransform:
         # get dimension in pt (not pixel!!!!) of the OCRed image
         self.width, self.height = None, None
         for div in self.hocr.findall(
-                ".//%sdiv[@class='ocr_page']" % (self.xmlns)):
+                ".//%sdiv[@class='ocr_page']" % self.xmlns):
             coords = self.element_coordinates(div)
             pt_coords = self.pt_from_pixel(coords)
             self.width = pt_coords.x2 - pt_coords.x1
@@ -453,21 +456,23 @@ class Pdf2PdfOcr:
     path_this_python = sys.executable
     """Path for python in this system"""
 
-    prefix = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))
-    """A random prefix to support multiple execution in parallel"""
-
-    shell_mode = (os.name == 'nt')
+    shell_mode = (sys.platform == "win32")
     """How to run external process? In Windows use Shell=True
     http://stackoverflow.com/questions/5658622/python-subprocess-popen-environment-path
     "Also, on Windows with shell=False, it pays no attention to PATH at all,
     and will only look in relative to the current working directory."
     """
 
-    tmp_dir = tempfile.gettempdir() + os.path.sep
-    """Temp dir"""
-
     def __init__(self, args):
         super().__init__()
+        self.log_time_format = '%Y-%m-%d %H:%M:%S.%f'
+        #
+        # A random prefix to support multiple execution in parallel
+        self.prefix = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(5))
+        # The temp dir
+        self.tmp_dir = tempfile.gettempdir() + os.path.sep + "pdf2pdfocr_{0}".format(self.prefix) + os.path.sep
+        os.mkdir(self.tmp_dir)
+        #
         self.verbose_mode = args.verbose_mode
         self.check_external_tools()
         # Handle arguments from command line
@@ -501,10 +506,10 @@ class Pdf2PdfOcr:
             self.force_out_dir = ""
         if self.force_out_file != "" and self.force_out_dir != "":
             eprint("It's not possible to force output name and dir at the same time. Please use '-o' OR '-O'")
-            exit(1)
+            sys.exit(1)
         if self.force_out_dir_mode and (not os.path.isdir(self.force_out_dir)):
             eprint("Invalid output directory: {0}".format(self.force_out_dir))
-            exit(1)
+            sys.exit(1)
         self.tess_langs = args.tess_langs
         if self.tess_langs is None:
             self.tess_langs = "por+eng"  # Default
@@ -515,12 +520,12 @@ class Pdf2PdfOcr:
         self.text_generation_strategy = args.text_generation_strategy
         if self.text_generation_strategy not in ["tesseract", "native"]:
             eprint("{0} is not a valid text generation strategy. Exiting.".format(self.text_generation_strategy))
-            exit(1)
+            sys.exit(1)
         self.ocr_ignored = False
         self.ocr_engine = args.ocr_engine
         if self.ocr_engine not in ["tesseract", "cuneiform", "no_ocr"]:
             eprint("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
-            exit(1)
+            sys.exit(1)
         self.extra_ocr_flag = args.extra_ocr_flag
         if self.extra_ocr_flag is not None:
             self.extra_ocr_flag = str(self.extra_ocr_flag.strip())
@@ -528,7 +533,7 @@ class Pdf2PdfOcr:
         self.input_file = args.input_file
         if not os.path.isfile(self.input_file):
             eprint("{0} not found. Exiting.".format(self.input_file))
-            exit(1)
+            sys.exit(1)
         self.input_file = os.path.abspath(self.input_file)
         self.input_file_type = ""
         #
@@ -548,13 +553,15 @@ class Pdf2PdfOcr:
             self.cpu_to_use = 1
         self.debug("Parallel operations will use {0} CPUs".format(self.cpu_to_use))
         #
+        self.main_pool = multiprocessing.Pool(self.cpu_to_use)
+        #
 
     def check_external_tools(self):
         """Check if external tools are available, aborting or warning in case of any error."""
         self.path_tesseract = shutil.which(self.cmd_tesseract)
         if self.path_tesseract is None:
             eprint("tesseract not found. Aborting...")
-            exit(1)
+            sys.exit(1)
         #
         self.tesseract_can_textonly_pdf = self.test_tesseract_textonly_pdf()
         self.tesseract_version = self.get_tesseract_version()
@@ -571,29 +578,29 @@ class Pdf2PdfOcr:
             self.path_convert = shutil.which(self.cmd_magick)
         if self.path_convert is None:
             eprint("convert/magick from ImageMagick not found. Aborting...")
-            exit(1)
+            sys.exit(1)
         #
         self.path_mogrify = shutil.which(self.cmd_mogrify)
         if self.path_mogrify is None:
             eprint("mogrify from ImageMagick not found. Aborting...")
-            exit(1)
+            sys.exit(1)
         #
         self.path_file = shutil.which(self.cmd_file)
         if self.path_file is None:
             eprint("file not found. Aborting...")
-            exit(1)
+            sys.exit(1)
         #
         self.path_pdftoppm = shutil.which(self.cmd_pdftoppm)
         if self.path_pdftoppm is None:
             eprint("pdftoppm (poppler) not found. Aborting...")
-            exit(1)
+            sys.exit(1)
         if self.get_pdftoppm_version() <= LooseVersion("0.70.0"):
             self.log("External tool 'pdftoppm' is outdated. Please upgrade poppler")
         #
         self.path_pdffonts = shutil.which(self.cmd_pdffonts)
         if self.path_pdffonts is None:
             eprint("pdffonts (poppler) not found. Aborting...")
-            exit(1)
+            sys.exit(1)
         #
         self.path_ps2pdf = shutil.which(self.cmd_ps2pdf)
         self.path_pdf2ps = shutil.which(self.cmd_pdf2ps)
@@ -614,27 +621,40 @@ class Pdf2PdfOcr:
     def debug(self, param):
         try:
             if self.verbose_mode:
-                tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                tstamp = datetime.datetime.now().strftime(self.log_time_format)
                 print("[{0}] [DEBUG] {1}".format(tstamp, param), flush=True)
         except:
             pass
 
     def log(self, param):
         try:
-            tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+            tstamp = datetime.datetime.now().strftime(self.log_time_format)
             print("[{0}] [LOG] {1}".format(tstamp, param), flush=True)
         except:
             pass
 
     def cleanup(self):
+        #
+        # Try to kill all child process still alive (in timeout situation)
+        process = psutil.Process(os.getpid())
+        for proc in process.children(recursive=True):
+            if "python" not in proc.name().lower():  # Python process are from multiprocessing and will be handled below
+                self.debug("Killing child process {0} with pid {1}".format(proc.name(), proc.pid))
+                try:
+                    proc.kill()
+                except:
+                    pass  # By design
+        #
+        # Cleanup the pool
+        if self.main_pool:
+            self.main_pool.close()
+            self.main_pool.terminate()
+            self.main_pool.join()
+            self.main_pool = None  # Signal for pool to stop waiting in while loops
+        #
+        # Cleanup temp files
         if self.delete_temps:
-            # All with PREFIX on temp files
-            for f in glob.glob(self.tmp_dir + "*" + self.prefix + "*.*"):
-                Pdf2PdfOcr.best_effort_remove(f)
-            # Cuneiform directories
-            for f in glob.glob(self.tmp_dir + self.prefix + "*_files"):
-                shutil.rmtree(f, ignore_errors=True)
-
+            shutil.rmtree(self.tmp_dir, ignore_errors=True)
         else:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
@@ -714,7 +734,7 @@ This software is free, but if you like it, please donate to support new features
                     img_data = PyPDF2.PdfFileReader(img_f, strict=False)
                     first_page_img_rect = img_data.getPage(0).mediaBox
                     first_page_img_area = first_page_img_rect.getWidth() * first_page_img_rect.getHeight()
-            except PyPDF2.utils.PdfReadError:
+            except PdfReadError:
                 eprint("Warning: could not read input file page geometry. Merge may fail, please check input file.")
                 first_page_img_area = 0
             with open(text_pdf_file_path, "rb") as txt_f:
@@ -768,7 +788,7 @@ This software is free, but if you like it, please donate to support new features
         if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
             eprint("Output file could not be created :( Exiting with error code.")
             self.cleanup()
-            exit(1)
+            sys.exit(1)
 
     def rebuild_and_merge(self):
         eprint("Warning: metadata wiped from final PDF file (original file is not an unprotected PDF / "
@@ -784,10 +804,9 @@ This software is free, but if you like it, please donate to support new features
         rebuild_list = sorted(glob.glob(self.tmp_dir + self.prefix + "*." + self.extension_images))
         #
         if self.user_convert_params == "smart":
-            checkimg_pool = multiprocessing.Pool(self.cpu_to_use)
-            checkimg_pool_map = checkimg_pool.starmap_async(do_check_img_greyscale, zip(rebuild_list))
+            checkimg_pool_map = self.main_pool.starmap_async(do_check_img_greyscale, zip(rebuild_list))
             checkimg_wait_rounds = 0
-            while not checkimg_pool_map.ready():
+            while not checkimg_pool_map.ready() and (self.main_pool is not None):
                 checkimg_wait_rounds += 1
                 if checkimg_wait_rounds % 10 == 0:
                     self.log("Checking page colors...")
@@ -817,15 +836,14 @@ This software is free, but if you like it, please donate to support new features
             convert_params = preset_best
         #
         self.log("Rebuilding PDF from images")
-        rebuild_pool = multiprocessing.Pool(self.cpu_to_use)
-        rebuild_pool_map = rebuild_pool.starmap_async(do_rebuild,
-                                                      zip(rebuild_list,
-                                                          itertools.repeat(self.path_convert),
-                                                          itertools.repeat(convert_params),
-                                                          itertools.repeat(self.tmp_dir),
-                                                          itertools.repeat(self.shell_mode)))
+        rebuild_pool_map = self.main_pool.starmap_async(do_rebuild,
+                                                        zip(rebuild_list,
+                                                            itertools.repeat(self.path_convert),
+                                                            itertools.repeat(convert_params),
+                                                            itertools.repeat(self.tmp_dir),
+                                                            itertools.repeat(self.shell_mode)))
         rebuild_wait_rounds = 0
-        while not rebuild_pool_map.ready():
+        while not rebuild_pool_map.ready() and (self.main_pool is not None):
             rebuild_wait_rounds += 1
             pages_processed = len(glob.glob(self.tmp_dir + "REBUILD_" + self.prefix + "*.pdf"))
             if rebuild_wait_rounds % 10 == 0:
@@ -843,7 +861,7 @@ This software is free, but if you like it, please donate to support new features
         else:
             eprint("No PDF files generated after image rebuilding. This is not expected. Aborting.")
             self.cleanup()
-            exit(1)
+            sys.exit(1)
         self.debug("PDF rebuilding completed")
         #
         if not self.ocr_ignored:
@@ -899,37 +917,38 @@ This software is free, but if you like it, please donate to support new features
         else:
             eprint("No PDF files generated after OCR. This is not expected. Aborting.")
             self.cleanup()
-            exit(1)
+            sys.exit(1)
         #
         self.debug("Joined ocr'ed PDF files")
 
     def external_ocr(self, image_file_list):
         if self.ocr_engine in ["cuneiform", "tesseract"]:
             self.log("Starting OCR with {0}...".format(self.ocr_engine))
-            ocr_pool = multiprocessing.Pool(self.cpu_to_use)
             if self.ocr_engine == "cuneiform":
-                ocr_pool_map = ocr_pool.starmap_async(do_ocr_cuneiform,
-                                                      zip(image_file_list,
-                                                          itertools.repeat(self.extra_ocr_flag),
-                                                          itertools.repeat(self.tess_langs),
-                                                          itertools.repeat(self.tmp_dir),
-                                                          itertools.repeat(self.shell_mode),
-                                                          itertools.repeat(self.path_cuneiform)))
-            if self.ocr_engine == "tesseract":
-                ocr_pool_map = ocr_pool.starmap_async(do_ocr_tesseract,
-                                                      zip(image_file_list,
-                                                          itertools.repeat(self.extra_ocr_flag),
-                                                          itertools.repeat(self.tess_langs),
-                                                          itertools.repeat(self.tess_psm),
-                                                          itertools.repeat(self.tmp_dir),
-                                                          itertools.repeat(self.shell_mode),
-                                                          itertools.repeat(self.path_tesseract),
-                                                          itertools.repeat(self.text_generation_strategy),
-                                                          itertools.repeat(self.delete_temps),
-                                                          itertools.repeat(self.tesseract_can_textonly_pdf)))
+                ocr_pool_map = self.main_pool.starmap_async(do_ocr_cuneiform,
+                                                            zip(image_file_list,
+                                                                itertools.repeat(self.extra_ocr_flag),
+                                                                itertools.repeat(self.tess_langs),
+                                                                itertools.repeat(self.tmp_dir),
+                                                                itertools.repeat(self.shell_mode),
+                                                                itertools.repeat(self.path_cuneiform)))
+            elif self.ocr_engine == "tesseract":
+                ocr_pool_map = self.main_pool.starmap_async(do_ocr_tesseract,
+                                                            zip(image_file_list,
+                                                                itertools.repeat(self.extra_ocr_flag),
+                                                                itertools.repeat(self.tess_langs),
+                                                                itertools.repeat(self.tess_psm),
+                                                                itertools.repeat(self.tmp_dir),
+                                                                itertools.repeat(self.shell_mode),
+                                                                itertools.repeat(self.path_tesseract),
+                                                                itertools.repeat(self.text_generation_strategy),
+                                                                itertools.repeat(self.delete_temps),
+                                                                itertools.repeat(self.tesseract_can_textonly_pdf)))
+            else:
+                ocr_pool_map = None  # Should never happen
             #
             ocr_rounds = 0
-            while not ocr_pool_map.ready():
+            while not ocr_pool_map.ready() and (self.main_pool is not None):
                 ocr_rounds += 1
                 pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.tmp"))
                 if ocr_rounds % 10 == 0:
@@ -945,16 +964,15 @@ This software is free, but if you like it, please donate to support new features
     def autorotate_info(self, image_file_list):
         if self.use_autorotate:
             self.debug("Calculating autorotate values...")
-            autorotate_pool = multiprocessing.Pool(self.cpu_to_use)
-            autorotate_pool_map = autorotate_pool.starmap_async(do_autorotate_info,
-                                                                zip(image_file_list,
-                                                                    itertools.repeat(self.shell_mode),
-                                                                    itertools.repeat(self.tmp_dir),
-                                                                    itertools.repeat(self.tess_langs),
-                                                                    itertools.repeat(self.path_tesseract),
-                                                                    itertools.repeat(self.tesseract_version)))
+            autorotate_pool_map = self.main_pool.starmap_async(do_autorotate_info,
+                                                               zip(image_file_list,
+                                                                   itertools.repeat(self.shell_mode),
+                                                                   itertools.repeat(self.tmp_dir),
+                                                                   itertools.repeat(self.tess_langs),
+                                                                   itertools.repeat(self.path_tesseract),
+                                                                   itertools.repeat(self.tesseract_version)))
             autorotate_rounds = 0
-            while not autorotate_pool_map.ready():
+            while not autorotate_pool_map.ready() and (self.main_pool is not None):
                 autorotate_rounds += 1
                 pages_processed = len(glob.glob(self.tmp_dir + self.prefix + "*.osd"))
                 if autorotate_rounds % 10 == 0:
@@ -1013,11 +1031,10 @@ This software is free, but if you like it, please donate to support new features
     def deskew(self, image_file_list):
         if self.use_deskew_mode:
             self.debug("Applying deskew (will rebuild final PDF file)")
-            deskew_pool = multiprocessing.Pool(self.cpu_to_use)
-            deskew_pool_map = deskew_pool.starmap_async(do_deskew, zip(image_file_list, itertools.repeat(self.deskew_threshold),
-                                                                       itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
+            deskew_pool_map = self.main_pool.starmap_async(do_deskew, zip(image_file_list, itertools.repeat(self.deskew_threshold),
+                                                                          itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
             deskew_wait_rounds = 0
-            while not deskew_pool_map.ready():
+            while not deskew_pool_map.ready() and (self.main_pool is not None):
                 deskew_wait_rounds += 1
                 pages_processed = len([x for x in deskew_pool_map._value if x is not None])
                 if deskew_wait_rounds % 10 == 0:
@@ -1029,15 +1046,14 @@ This software is free, but if you like it, please donate to support new features
         if self.input_file_type == "application/pdf":
             parallel_page_ranges = self.calculate_ranges()
             if parallel_page_ranges is not None:
-                pdfimage_pool = multiprocessing.Pool(self.cpu_to_use)
                 # TODO - try to use method inside this class (encapsulate do_pdftoimage)
-                do_pdftoimage_result_codes = pdfimage_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
-                                                                                      parallel_page_ranges,
-                                                                                      itertools.repeat(self.input_file),
-                                                                                      itertools.repeat(self.image_resolution),
-                                                                                      itertools.repeat(self.tmp_dir),
-                                                                                      itertools.repeat(self.prefix),
-                                                                                      itertools.repeat(self.shell_mode)))
+                do_pdftoimage_result_codes = self.main_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
+                                                                                       parallel_page_ranges,
+                                                                                       itertools.repeat(self.input_file),
+                                                                                       itertools.repeat(self.image_resolution),
+                                                                                       itertools.repeat(self.tmp_dir),
+                                                                                       itertools.repeat(self.prefix),
+                                                                                       itertools.repeat(self.shell_mode)))
             else:
                 # Without page info, only alternative is going sequentialy (without range)
                 do_pdftoimage_result_code = do_pdftoimage(self.path_pdftoppm, None, self.input_file, self.image_resolution, self.tmp_dir,
@@ -1047,7 +1063,7 @@ This software is free, but if you like it, please donate to support new features
             if not all(ret_code == 0 for ret_code in do_pdftoimage_result_codes):
                 eprint("Fail to create images from PDF. Exiting.")
                 self.cleanup()
-                exit(1)
+                sys.exit(1)
         else:
             if self.input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
                 # %09d to format files for correct sort
@@ -1058,7 +1074,7 @@ This software is free, but if you like it, please donate to support new features
             else:
                 eprint("{0} is not supported in this script. Exiting.".format(self.input_file_type))
                 self.cleanup()
-                exit(1)
+                sys.exit(1)
 
     def initial_cleanup(self):
         Pdf2PdfOcr.best_effort_remove(self.output_file)
@@ -1085,16 +1101,16 @@ This software is free, but if you like it, please donate to support new features
             if self.create_text_mode and os.path.isfile(self.output_file_text):
                 eprint("{0} already exists and safe mode is enabled. Exiting.".format(self.output_file_text))
             self.cleanup()
-            exit(1)
+            sys.exit(1)
 
     def validate_pdf_input_file(self):
         try:
             pdf_file_obj = open(self.input_file, 'rb')
             pdf_reader = PyPDF2.PdfFileReader(pdf_file_obj, strict=False)
-        except PyPDF2.utils.PdfReadError:
+        except PdfReadError:
             eprint("Corrupted PDF file detected. Aborting...")
             self.cleanup()
-            exit(1)
+            sys.exit(1)
         #
         try:
             self.input_file_number_of_pages = pdf_reader.getNumPages()
@@ -1114,12 +1130,12 @@ This software is free, but if you like it, please donate to support new features
         if self.input_file_type == "application/pdf" and self.check_text_mode and self.input_file_has_text:
             eprint("{0} already has text and check text mode is enabled. Exiting.".format(self.input_file))
             self.cleanup()
-            exit(1)
+            sys.exit(1)
         #
         if self.input_file_type == "application/pdf" and self.check_protection_mode and self.input_file_is_encrypted:
             eprint("{0} is encrypted PDF and check encryption mode is enabled. Exiting.".format(self.input_file))
             self.cleanup()
-            exit(1)
+            sys.exit(1)
 
     def check_avoid_high_pages(self):
         if self.input_file_number_of_pages is not None and self.avoid_high_pages_mode \
@@ -1127,7 +1143,7 @@ This software is free, but if you like it, please donate to support new features
             eprint("Input file has {0} pages and maximum for process in avoid high number of pages mode (-b) is {1}. "
                    "Exiting.".format(self.input_file_number_of_pages, self.avoid_high_pages_pages))
             self.cleanup()
-            exit(1)
+            sys.exit(1)
 
     def check_avoid_file_by_size(self):
         if self.avoid_small_file_mode:
@@ -1136,7 +1152,7 @@ This software is free, but if you like it, please donate to support new features
                 eprint("Input file has {0:.2f} KBytes and minimum size to process (--min-kbytes) is {1:.2f} KBytes. "
                        "Exiting.".format(input_file_size_kb, self.avoid_small_file_limit_kb))
                 self.cleanup()
-                exit(1)
+                sys.exit(1)
 
     def check_for_text(self):
         """Check if input file contains text. Actually based on pdffonts from poppler"""
@@ -1169,16 +1185,15 @@ This software is free, but if you like it, please donate to support new features
         try:
             result = False
             test_image = self.tmp_dir + "converttest-" + self.prefix + ".jpg"
-            ptest = subprocess.Popen([self.path_convert, 'rose:', test_image], stdout=subprocess.DEVNULL,
-                                     stderr=subprocess.DEVNULL, shell=self.shell_mode)
-            ptest.communicate()[0]
+            ptest = subprocess.Popen([self.path_convert, 'rose:', test_image], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     shell=self.shell_mode)
             ptest.wait()
             return_code = ptest.returncode
             if (return_code == 0) and (os.path.isfile(test_image)):
                 Pdf2PdfOcr.best_effort_remove(test_image)
                 result = True
             return result
-        except Exception as e:
+        except Exception:
             self.log("Error testing convert utility. Assuming there is no 'convert' available...")
             return False
 
@@ -1308,6 +1323,13 @@ This software is free, but if you like it, please donate to support new features
                 raise  # re-raise exception if a different error occured
 
 
+# To be used on signal handling
+def sigint_handler(signum, frame):
+    global pdf2ocr
+    pdf2ocr.cleanup()
+    sys.exit(1)
+
+
 # -------------
 # MAIN
 # -------------
@@ -1380,6 +1402,8 @@ Examples:
                              "HOCR default = 1) [tesseract only]. Use with caution")
     parser.add_argument("-x", dest="extra_ocr_flag", action="store", required=False,
                         help="add extra command line flags in select OCR engine for all pages. Use with caution")
+    parser.add_argument("--timeout", dest="timeout", action="store", default=None, type=int,
+                        help="run with time limit in seconds")
     parser.add_argument("-k", dest="keep_temps", action="store_true", default=False,
                         help="keep temporary files for debug")
     parser.add_argument("-v", dest="verbose_mode", action="store_true", default=False,
@@ -1390,25 +1414,36 @@ Examples:
     # Dummy to be called by gooey (GUI)
     parser.add_argument("--ignore-gooey", action="store_true", required=False, default=False)
     #
-    args = parser.parse_args()
+    pdf2ocr_args = parser.parse_args()
     #
-    pdf2ocr = Pdf2PdfOcr(args)
-
-
-    # Signal handling
-    def sigint_handler(*args):
-        pdf2ocr.cleanup()
-        exit(1)
-
-
+    pdf2ocr = Pdf2PdfOcr(pdf2ocr_args)
     #
     signal.signal(signal.SIGINT, sigint_handler)
     #
-    pdf2ocr.ocr()
+    if pdf2ocr_args.timeout:
+        #
+        # https://stackoverflow.com/questions/56305195/is-it-possible-to-specify-the-max-amount-of-time-to-wait-for-code-to-run-with-py/56305465
+        with futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future_pdf2ocr = executor.submit(pdf2ocr.ocr)
+            try:
+                future_pdf2ocr.result(pdf2ocr_args.timeout)
+            except futures.TimeoutError as fte:
+                #
+                # https://stackoverflow.com/questions/48350257/how-to-exit-a-script-after-threadpoolexecutor-has-timed-out
+                import atexit
+
+                atexit.unregister(futures.thread._python_exit)
+                executor.shutdown = lambda wait: None
+                #
+                pdf2ocr.cleanup()
+                eprint("Script stopped due to timeout of {0} seconds".format(pdf2ocr_args.timeout))
+                sys.exit(1)
+    else:
+        pdf2ocr.ocr()
     #
-    if args.pause_end_mode:
+    if pdf2ocr_args.pause_end_mode:
         input("Press <Enter> to continue...")
     #
-    exit(0)
+    sys.exit(0)
     #
 # This is the end
