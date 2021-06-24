@@ -46,7 +46,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.9.0 marapurense '
+VERSION = '1.9.1 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -659,6 +659,7 @@ class Pdf2PdfOcr:
             eprint("Temporary files kept in {0}".format(self.tmp_dir))
 
     def ocr(self):
+        time_at_start = time.time()
         self.log("Welcome to pdf2pdfocr version {0} - https://github.com/LeoFCardoso/pdf2pdfocr".format(VERSION))
         self.check_avoid_file_by_size()
         self.detect_file_type()
@@ -702,6 +703,7 @@ class Pdf2PdfOcr:
         # TODO touch -r "$INPUT_FILE" "$OUTPUT_FILE"
         #
         self.cleanup()
+        time_elapsed = time.time() - time_at_start
         #
         paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name" \
                              "=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
@@ -710,7 +712,7 @@ class Pdf2PdfOcr:
         bitcoin_address = "173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ"
         dogecoin_address = "D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG"
         pix_key = "0726e8f2-7e59-488a-8abb-bda8f0d7d9ce"
-        success_message = """Success!
+        success_message = """Success in {6:.3f} seconds!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
 {0}
@@ -722,7 +724,7 @@ This software is free, but if you like it, please donate to support new features
 ---> Dogecoin (DOGE) address: {4}
 ---> PIX (Brazilian Instant Payments) key: {5}
 ---> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(
-            paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address, pix_key)
+            paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address, pix_key, time_elapsed)
         self.log(success_message)
 
     def _merge_ocr(self, image_pdf_file_path, text_pdf_file_path, result_pdf_file_path, tag):
@@ -1211,6 +1213,7 @@ This software is free, but if you like it, please donate to support new features
         # Inspired by the great lib 'pytesseract' - https://github.com/madmaze/pytesseract/blob/master/src/pytesseract.py
         try:
             version_info = subprocess.check_output([self.path_tesseract, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            # self.debug("Tesseract full version info: {0}".format(version_info))
             version_info = version_info[1].lstrip(string.printable[10:])
             l_version_info = LooseVersion(version_info)
             result = int(l_version_info.version[0])
@@ -1337,6 +1340,14 @@ if __name__ == '__main__':
     # https://docs.python.org/3/library/multiprocessing.html#multiprocessing-programming
     # See "Safe importing of main module"
     multiprocessing.freeze_support()  # Should make effect only on non-fork systems (Windows)
+    #
+    # From tesseract docs:
+    # "If the tesseract executable was built with multithreading support, it will normally use four CPU cores for the OCR process. While this can be
+    # faster for a single image, it gives bad performance if the host computer provides less than four CPU cores or if OCR is made for many images.
+    # Only a single CPU core is used with OMP_THREAD_LIMIT=1"
+    # As we control number of parallel executions, set this env var for the entire script.
+    os.environ['OMP_THREAD_LIMIT'] = '1'
+    #
     # Arguments
     parser = argparse.ArgumentParser(
         description=('pdf2pdfocr.py [https://github.com/LeoFCardoso/pdf2pdfocr] version %s (http://semver.org/lang/pt-BR/)' % VERSION),
@@ -1398,8 +1409,8 @@ Examples:
     parser.add_argument("-l", dest="tess_langs", action="store", required=False,
                         help="force tesseract or cuneiform to use specific language (default: por+eng)")
     parser.add_argument("-m", dest="tess_psm", action="store", required=False,
-                        help="force tesseract to use HOCR with specific \"pagesegmode\" (default: tesseract "
-                             "HOCR default = 1) [tesseract only]. Use with caution")
+                        help="force tesseract to use OCR with specific \"pagesegmode\" (default: tesseract "
+                             "OCR default = 1) [tesseract only]. Use with caution")
     parser.add_argument("-x", dest="extra_ocr_flag", action="store", required=False,
                         help="add extra command line flags in select OCR engine for all pages. Use with caution")
     parser.add_argument("--timeout", dest="timeout", action="store", default=None, type=int,

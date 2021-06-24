@@ -50,6 +50,7 @@ RUN /opt/install/install_command
 
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
+ENV OMP_THREAD_LIMIT 1
 
 USER docker
 WORKDIR /home/docker
