@@ -16,8 +16,8 @@ rem ---------------
 rem Language data files can be downloaded from https://github.com/tesseract-ocr/tessdata
 rem Example Portuguese (POR) and Spanhish (SPA) - Tesseract branch 4.00
 rem ---------------
-aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/por.traineddata" --dir="%TESSDATA_PREFIX%"
-aria2c "https://github.com/tesseract-ocr/tessdata/raw/master/spa.traineddata" --dir="%TESSDATA_PREFIX%"
+aria2c "https://github.com/tesseract-ocr/tessdata/blob/main/por.traineddata?raw=true" --dir="%TESSDATA_PREFIX%"
+aria2c "https://github.com/tesseract-ocr/tessdata/blob/main/por.traineddata?raw=true" --dir="%TESSDATA_PREFIX%"
 
 rem Complete python with VENV and required libs
 rem ---------------
