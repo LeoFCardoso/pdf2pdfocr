@@ -1,6 +1,6 @@
 # pdf2pdfocr
 #
-# Dockerfile version 5.0
+# Dockerfile version 5.1
 #
 FROM ubuntu:20.04
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
@@ -31,11 +31,12 @@ RUN rm /etc/ImageMagick-6/policy.xml
 # Software dependencies [End]
 
 # Python 3 and deps [Start]
-RUN pip3 install --upgrade psutil Pillow reportlab \
+RUN pip3 install --upgrade packaging psutil Pillow reportlab \
  && pip3 install --upgrade lxml beautifulsoup4 \
  && pip3 install --upgrade wheel
 
-RUN pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
+RUN pip3 install --upgrade PyPDF2
+# RUN pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
 # Python 3 and deps [End]
 
 RUN tesseract --list-langs    # just a test

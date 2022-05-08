@@ -27,8 +27,8 @@ cd "%USERPROFILE%\pdf2pdfocr-venv"
 .\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install wheel setuptools
-pip install reportlab psutil
-pip install https://github.com/mstamy2/PyPDF2/archive/master.zip
+pip install reportlab psutil packaging
+pip install PyPDF2
 rem [TO USE GUI]
 pip install Gooey
 rem ---------------

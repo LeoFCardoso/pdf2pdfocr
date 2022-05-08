@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##############################################################################
-# Copyright (c) 2021: Leonardo Cardoso
+# Copyright (c) 2022: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
@@ -31,7 +31,7 @@ import tempfile
 import time
 from collections import namedtuple
 from concurrent import futures
-from distutils.version import LooseVersion
+from packaging.version import Version
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -46,7 +46,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.9.1 marapurense '
+VERSION = '1.10.0 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -414,6 +414,10 @@ class HocrTransform:
         #
 
 
+class Pdf2PdfOcrException(Exception):
+    pass
+
+
 class Pdf2PdfOcr:
     # External tools command. If you can't edit your path, adjust here to match your system
     cmd_cuneiform = "cuneiform"
@@ -463,7 +467,7 @@ class Pdf2PdfOcr:
     and will only look in relative to the current working directory."
     """
 
-    def __init__(self, args):
+    def __init__(self, args, override_input_file=None):
         super().__init__()
         self.log_time_format = '%Y-%m-%d %H:%M:%S.%f'
         #
@@ -505,11 +509,9 @@ class Pdf2PdfOcr:
         else:
             self.force_out_dir = ""
         if self.force_out_file != "" and self.force_out_dir != "":
-            eprint("It's not possible to force output name and dir at the same time. Please use '-o' OR '-O'")
-            sys.exit(1)
+            raise Pdf2PdfOcrException("It's not possible to force output name and dir at the same time. Please use '-o' OR '-O'")
         if self.force_out_dir_mode and (not os.path.isdir(self.force_out_dir)):
-            eprint("Invalid output directory: {0}".format(self.force_out_dir))
-            sys.exit(1)
+            raise Pdf2PdfOcrException("Invalid output directory: {0}".format(self.force_out_dir))
         self.tess_langs = args.tess_langs
         if self.tess_langs is None:
             self.tess_langs = "por+eng"  # Default
@@ -519,21 +521,18 @@ class Pdf2PdfOcr:
         self.image_resolution = args.image_resolution
         self.text_generation_strategy = args.text_generation_strategy
         if self.text_generation_strategy not in ["tesseract", "native"]:
-            eprint("{0} is not a valid text generation strategy. Exiting.".format(self.text_generation_strategy))
-            sys.exit(1)
+            raise Pdf2PdfOcrException("{0} is not a valid text generation strategy. Exiting.".format(self.text_generation_strategy))
         self.ocr_ignored = False
         self.ocr_engine = args.ocr_engine
         if self.ocr_engine not in ["tesseract", "cuneiform", "no_ocr"]:
-            eprint("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
-            sys.exit(1)
+            raise Pdf2PdfOcrException("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
         self.extra_ocr_flag = args.extra_ocr_flag
         if self.extra_ocr_flag is not None:
             self.extra_ocr_flag = str(self.extra_ocr_flag.strip())
         self.delete_temps = not args.keep_temps
-        self.input_file = args.input_file
+        self.input_file = args.input_file if override_input_file is None else override_input_file
         if not os.path.isfile(self.input_file):
-            eprint("{0} not found. Exiting.".format(self.input_file))
-            sys.exit(1)
+            raise Pdf2PdfOcrException("{0} not found. Exiting.".format(self.input_file))
         self.input_file = os.path.abspath(self.input_file)
         self.input_file_type = ""
         #
@@ -594,7 +593,7 @@ class Pdf2PdfOcr:
         if self.path_pdftoppm is None:
             eprint("pdftoppm (poppler) not found. Aborting...")
             sys.exit(1)
-        if self.get_pdftoppm_version() <= LooseVersion("0.70.0"):
+        if self.get_pdftoppm_version() <= Version("0.70.0"):
             self.log("External tool 'pdftoppm' is outdated. Please upgrade poppler")
         #
         self.path_pdffonts = shutil.which(self.cmd_pdffonts)
@@ -613,7 +612,7 @@ class Pdf2PdfOcr:
         else:
             qpdf_version = self.get_qpdf_version()
             minimum_version = "8.4.1"
-            if qpdf_version < LooseVersion(minimum_version):
+            if qpdf_version < Version(minimum_version):
                 self.log("External tool 'qpdf' is not on minimum version ({0}). Merge can be slow".format(minimum_version))
                 self.path_qpdf = None
         #
@@ -788,9 +787,8 @@ This software is free, but if you like it, please donate to support new features
             self.rebuild_and_merge()
         #
         if not os.path.isfile(self.tmp_dir + self.prefix + "-OUTPUT.pdf"):
-            eprint("Output file could not be created :( Exiting with error code.")
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("Output file could not be created :( Exiting with error code.")
 
     def rebuild_and_merge(self):
         eprint("Warning: metadata wiped from final PDF file (original file is not an unprotected PDF / "
@@ -861,9 +859,8 @@ This software is free, but if you like it, please donate to support new features
             pdf_merger.write(self.tmp_dir + self.prefix + "-input_unprotected.pdf")
             pdf_merger.close()
         else:
-            eprint("No PDF files generated after image rebuilding. This is not expected. Aborting.")
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("No PDF files generated after image rebuilding. This is not expected. Aborting.")
         self.debug("PDF rebuilding completed")
         #
         if not self.ocr_ignored:
@@ -917,9 +914,8 @@ This software is free, but if you like it, please donate to support new features
             pdf_merger.write(self.tmp_dir + self.prefix + "-ocr.pdf")
             pdf_merger.close()
         else:
-            eprint("No PDF files generated after OCR. This is not expected. Aborting.")
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("No PDF files generated after OCR. This is not expected. Aborting.")
         #
         self.debug("Joined ocr'ed PDF files")
 
@@ -1063,9 +1059,8 @@ This software is free, but if you like it, please donate to support new features
                 do_pdftoimage_result_codes = [do_pdftoimage_result_code]
             #
             if not all(ret_code == 0 for ret_code in do_pdftoimage_result_codes):
-                eprint("Fail to create images from PDF. Exiting.")
                 self.cleanup()
-                sys.exit(1)
+                raise Pdf2PdfOcrException("Fail to create images from PDF. Exiting.")
         else:
             if self.input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
                 # %09d to format files for correct sort
@@ -1074,9 +1069,8 @@ This software is free, but if you like it, please donate to support new features
                                      shell=self.shell_mode)
                 p.wait()
             else:
-                eprint("{0} is not supported in this script. Exiting.".format(self.input_file_type))
                 self.cleanup()
-                sys.exit(1)
+                raise Pdf2PdfOcrException("{0} is not supported in this script. Exiting.".format(self.input_file_type))
 
     def initial_cleanup(self):
         Pdf2PdfOcr.best_effort_remove(self.output_file)
@@ -1098,21 +1092,19 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Output file: {0} for PDF and {1} for TXT".format(self.output_file, self.output_file_text))
         if (self.safe_mode and os.path.isfile(self.output_file)) or \
                 (self.safe_mode and self.create_text_mode and os.path.isfile(self.output_file_text)):
-            if os.path.isfile(self.output_file):
-                eprint("{0} already exists and safe mode is enabled. Exiting.".format(self.output_file))
-            if self.create_text_mode and os.path.isfile(self.output_file_text):
-                eprint("{0} already exists and safe mode is enabled. Exiting.".format(self.output_file_text))
             self.cleanup()
-            sys.exit(1)
+            if os.path.isfile(self.output_file):
+                raise Pdf2PdfOcrException("{0} already exists and safe mode is enabled. Exiting.".format(self.output_file))
+            if self.create_text_mode and os.path.isfile(self.output_file_text):
+                raise Pdf2PdfOcrException("{0} already exists and safe mode is enabled. Exiting.".format(self.output_file_text))
 
     def validate_pdf_input_file(self):
         try:
             pdf_file_obj = open(self.input_file, 'rb')
             pdf_reader = PyPDF2.PdfFileReader(pdf_file_obj, strict=False)
-        except PdfReadError:
-            eprint("Corrupted PDF file detected. Aborting...")
+        except PdfReadError as e:
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("Corrupted PDF file detected. Aborting...")
         #
         try:
             self.input_file_number_of_pages = pdf_reader.getNumPages()
@@ -1130,31 +1122,27 @@ This software is free, but if you like it, please donate to support new features
             self.input_file_has_text = self.check_for_text()
         #
         if self.input_file_type == "application/pdf" and self.check_text_mode and self.input_file_has_text:
-            eprint("{0} already has text and check text mode is enabled. Exiting.".format(self.input_file))
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("{0} already has text and check text mode is enabled. Exiting.".format(self.input_file))
         #
         if self.input_file_type == "application/pdf" and self.check_protection_mode and self.input_file_is_encrypted:
-            eprint("{0} is encrypted PDF and check encryption mode is enabled. Exiting.".format(self.input_file))
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("{0} is encrypted PDF and check encryption mode is enabled. Exiting.".format(self.input_file))
 
     def check_avoid_high_pages(self):
         if self.input_file_number_of_pages is not None and self.avoid_high_pages_mode \
                 and self.input_file_number_of_pages > self.avoid_high_pages_pages:
-            eprint("Input file has {0} pages and maximum for process in avoid high number of pages mode (-b) is {1}. "
-                   "Exiting.".format(self.input_file_number_of_pages, self.avoid_high_pages_pages))
             self.cleanup()
-            sys.exit(1)
+            raise Pdf2PdfOcrException("Input file has {0} pages and maximum for process in avoid high number of pages mode (-b) is {1}. "
+                                      "Exiting.".format(self.input_file_number_of_pages, self.avoid_high_pages_pages))
 
     def check_avoid_file_by_size(self):
         if self.avoid_small_file_mode:
             input_file_size_kb = os.path.getsize(self.input_file) / 1024
             if input_file_size_kb < self.avoid_small_file_limit_kb:
-                eprint("Input file has {0:.2f} KBytes and minimum size to process (--min-kbytes) is {1:.2f} KBytes. "
-                       "Exiting.".format(input_file_size_kb, self.avoid_small_file_limit_kb))
                 self.cleanup()
-                sys.exit(1)
+                raise Pdf2PdfOcrException("Input file has {0:.2f} KBytes and minimum size to process (--min-kbytes) is {1:.2f} KBytes. "
+                                          "Exiting.".format(input_file_size_kb, self.avoid_small_file_limit_kb))
 
     def check_for_text(self):
         """Check if input file contains text. Actually based on pdffonts from poppler"""
@@ -1215,8 +1203,8 @@ This software is free, but if you like it, please donate to support new features
             version_info = subprocess.check_output([self.path_tesseract, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             # self.debug("Tesseract full version info: {0}".format(version_info))
             version_info = version_info[1].lstrip(string.printable[10:])
-            l_version_info = LooseVersion(version_info)
-            result = int(l_version_info.version[0])
+            l_version_info = Version(version_info)
+            result = int(l_version_info.major)
             self.debug("Tesseract version: {0}".format(result))
             return result
         except Exception as e:
@@ -1227,25 +1215,25 @@ This software is free, but if you like it, please donate to support new features
         try:
             version_info = subprocess.check_output([self.path_qpdf, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
-            l_version_info = LooseVersion(version_info)
+            l_version_info = Version(version_info)
             self.debug("Qpdf version: {0}".format(l_version_info))
             return l_version_info
         except Exception as e:
             legacy_version = "8.4.0"
             self.log("Error checking qpdf version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
-            return LooseVersion(legacy_version)
+            return Version(legacy_version)
 
     def get_pdftoppm_version(self):
         try:
             version_info = subprocess.check_output([self.path_pdftoppm, '-v'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
-            l_version_info = LooseVersion(version_info)
+            l_version_info = Version(version_info)
             self.debug("Pdftoppm version: {0}".format(l_version_info))
             return l_version_info
         except Exception as e:
             legacy_version = "0.70.0"
             self.log("Error checking pdftoppm version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
-            return LooseVersion(legacy_version)
+            return Version(legacy_version)
 
     def calculate_ranges(self):
         """
@@ -1354,7 +1342,7 @@ if __name__ == '__main__':
         formatter_class=argparse.RawTextHelpFormatter)
     requiredNamed = parser.add_argument_group('required arguments')
     requiredNamed.add_argument("-i", dest="input_file", action="store", required=True,
-                               help="path for input file")
+                               help="path for input file or folder")
     #
     parser.add_argument("-c", dest="ocr_engine", action="store", default="tesseract", type=str,
                         help="specify OCR engine (tesseract, cuneiform, no_ocr). "
@@ -1427,34 +1415,53 @@ Examples:
     #
     pdf2ocr_args = parser.parse_args()
     #
-    pdf2ocr = Pdf2PdfOcr(pdf2ocr_args)
+    dir_mode = os.path.isdir(pdf2ocr_args.input_file)
+    if dir_mode:
+        file_to_process_list = []
+        for t_root, t_directories, t_files in os.walk(pdf2ocr_args.input_file):
+            for name in t_files:
+                file_to_process_list.append(os.path.join(t_root, name))
+    else:
+        file_to_process_list = [pdf2ocr_args.input_file]
     #
     signal.signal(signal.SIGINT, sigint_handler)
     #
-    if pdf2ocr_args.timeout:
-        #
-        # https://stackoverflow.com/questions/56305195/is-it-possible-to-specify-the-max-amount-of-time-to-wait-for-code-to-run-with-py/56305465
-        with futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future_pdf2ocr = executor.submit(pdf2ocr.ocr)
-            try:
-                future_pdf2ocr.result(pdf2ocr_args.timeout)
-            except futures.TimeoutError as fte:
-                #
-                # https://stackoverflow.com/questions/48350257/how-to-exit-a-script-after-threadpoolexecutor-has-timed-out
-                import atexit
+    all_success = True
+    for file_to_process in file_to_process_list:
+        try:
+            print("-------------------------------------")
+            print("File:", file_to_process, flush=True)
+            pdf2ocr = Pdf2PdfOcr(pdf2ocr_args, file_to_process)
+            #
+            if pdf2ocr_args.timeout:
+                # https://stackoverflow.com/questions/56305195/is-it-possible-to-specify-the-max-amount-of-time-to-wait-for-code-to-run-with-py
+                # /56305465
+                with futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future_pdf2ocr = executor.submit(pdf2ocr.ocr)
+                    try:
+                        future_pdf2ocr.result(pdf2ocr_args.timeout)
+                    except futures.TimeoutError as fte:
+                        #
+                        # https://stackoverflow.com/questions/48350257/how-to-exit-a-script-after-threadpoolexecutor-has-timed-out
+                        import atexit
 
-                atexit.unregister(futures.thread._python_exit)
-                executor.shutdown = lambda wait: None
-                #
-                pdf2ocr.cleanup()
-                eprint("Script stopped due to timeout of {0} seconds".format(pdf2ocr_args.timeout))
-                sys.exit(1)
-    else:
-        pdf2ocr.ocr()
+                        atexit.unregister(futures.thread._python_exit)
+                        executor.shutdown = lambda wait: None
+                        #
+                        pdf2ocr.cleanup()
+                        raise Pdf2PdfOcrException("Script stopped due to timeout of {0} seconds".format(pdf2ocr_args.timeout))
+            else:
+                pdf2ocr.ocr()
+        except Pdf2PdfOcrException as e_p:
+            print("Error:", e_p, flush=True)
+            all_success = False
     #
     if pdf2ocr_args.pause_end_mode:
         input("Press <Enter> to continue...")
     #
-    sys.exit(0)
+    if all_success:
+        sys.exit(0)
+    else:
+        sys.exit(1)
     #
 # This is the end

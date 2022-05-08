@@ -47,8 +47,8 @@ In macOS, you will need macports.
     sudo port select --set python3 python37
     sudo port select --set pip pip37
     # Install libs (please ignore warning messages)
-    sudo pip3 install psutil reportlab Gooey
-    sudo pip3 install https://github.com/mstamy2/PyPDF2/archive/master.zip
+    sudo pip3 install packaging psutil reportlab Gooey
+    sudo pip3 install PyPDF2
     # Install optional libs (for cuneiform)
     sudo pip3 install lxml beautifulsoup4
 
@@ -78,3 +78,6 @@ to view all the options.
 It's also possible to use GUI.
     
     pdf2pdfocr_gui.py <<optional input file>>
+
+# fun
+Caseiro com orgulho! ;-)

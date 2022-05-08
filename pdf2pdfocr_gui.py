@@ -32,8 +32,8 @@ def show_gui(p_input_file_argument):
     parser = GooeyParser(description="https://github.com/LeoFCardoso/pdf2pdfocr")
     #
     files_group = parser.add_argument_group("Files", gooey_options={'columns': 1})
-    files_group.add_argument("-i", dest="input_file", metavar="Input file", action="store", required=True, widget="FileChooser",
-                             default=p_input_file_argument, help="path for input file")
+    files_group.add_argument("-i", dest="input_file", metavar="Input file / folder", action="store", required=True, widget="FileChooser",
+                             default=p_input_file_argument, help="path for input file or folder")
     files_group.add_argument("-o", dest="output_file", metavar="Output file", action="store", required=False, widget="FileChooser",
                              help="force output file to the specified location (optional)")
     #
