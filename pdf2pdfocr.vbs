@@ -6,6 +6,8 @@
 ' Ref.: http://www.howtogeek.com/howto/windows-vista/customize-the-windows-vista-send-to-menu/
 '
 
+' DEPRECATED: PLEASE USE A FOLDER IN "-i" PARAMETER
+
 ' ******* FUNCTIONS ***
 
 ' Run command - see https://www.codeproject.com/Tips/507798/Differences-between-Run-and-Exec-VBScript

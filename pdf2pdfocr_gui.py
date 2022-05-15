@@ -54,6 +54,8 @@ def show_gui(p_input_file_argument):
                                help="Create a text file at same location of PDF OCR file [tesseract only] ")
     basic_options.add_argument("-u", dest="autorotate", metavar='Autorotate (-u)', action="store_true", default=False,
                                help="Try to autorotate pages using 'psm 0' feature [tesseract only] ")
+    basic_options.add_argument("--ignore-existing-text", dest="ignore_existing_text", metavar='Ignore existing text (--ignore-existing-text)',
+                               action="store_true", default=False, help="don't OCR again native PDF text")
     basic_options.add_argument("-v", dest="verbose_mode", metavar='Verbose (-v)', action="store_true", default=True,
                                help="enable verbose mode ")
     #

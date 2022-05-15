@@ -46,7 +46,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.10.0 marapurense '
+VERSION = '1.11.0 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -238,6 +238,30 @@ def do_check_img_greyscale(param_image_file):
         return False
     #
     return True
+
+
+def do_check_img_colors_size(param_image_file):
+    """
+    Inspired in code provided by Raffael:
+    https://stackoverflow.com/questions/14041562/python-pil-detect-if-an-image-is-completely-black-or-white
+    Check if image is single color
+    """
+    im = Image.open(param_image_file)
+    colors = im.getcolors()
+    width, height = im.size
+    return colors, (width, height)
+
+
+def do_create_blank_pdf(param_filename_pdf, param_dimensions, param_image_resolution):
+    blank_output_pdf = PyPDF2.PdfFileWriter()
+    img_witdh = param_dimensions[0]
+    img_width_pt = (img_witdh / param_image_resolution) * 72.0
+    img_height = param_dimensions[1]
+    img_height_pt = (img_height / param_image_resolution) * 72.0
+    blank_output_pdf.addBlankPage(img_width_pt, img_height_pt)
+    with open(param_filename_pdf, 'wb') as f:
+        blank_output_pdf.write(f)
+        f.close()
 
 
 def percentual_float(x):
@@ -439,6 +463,8 @@ class Pdf2PdfOcr:
     path_ps2pdf = ""
     cmd_pdf2ps = "pdf2ps"
     path_pdf2ps = ""
+    cmd_gs = "gs"
+    path_gs = ""
     cmd_qpdf = "qpdf"
     path_qpdf = ""
 
@@ -482,12 +508,16 @@ class Pdf2PdfOcr:
         # Handle arguments from command line
         self.safe_mode = args.safe_mode
         self.check_text_mode = args.check_text_mode
+        self.ignore_existing_text = args.ignore_existing_text
+        self.blank_pages = []
+        self.blank_pages_dimensions = []
         self.check_protection_mode = args.check_protection_mode
         self.avoid_high_pages_mode = args.max_pages is not None
         self.avoid_high_pages_pages = args.max_pages
         self.avoid_small_file_mode = args.min_kbytes is not None
         self.avoid_small_file_limit_kb = args.min_kbytes
         self.force_rebuild_mode = args.force_rebuild_mode
+        self.rebuild_pdf_from_images = False
         self.user_convert_params = args.convert_params
         if self.user_convert_params is None:
             self.user_convert_params = ""  # Default
@@ -606,6 +636,10 @@ class Pdf2PdfOcr:
         if self.path_ps2pdf is None or self.path_pdf2ps is None:
             eprint("ps2pdf or pdf2ps (ghostscript) not found. File repair will not work...")
         #
+        self.path_gs = shutil.which(self.cmd_gs)
+        if self.path_gs is None:
+            eprint("ghostscript not found. Param 'ignore-existing-text' will not work...")
+        #
         self.path_qpdf = shutil.which(self.cmd_qpdf)
         if self.path_qpdf is None:
             self.log("External tool 'qpdf' not available. Merge can be slow")
@@ -664,7 +698,8 @@ class Pdf2PdfOcr:
         self.detect_file_type()
         if self.input_file_type == "application/pdf":
             self.validate_pdf_input_file()
-        self.debug("Conversion params: {0}".format(self.user_convert_params))
+        self.check_rebuild_pdf()
+        self.debug("User conversion params: {0}".format(self.user_convert_params))
         self.define_output_files()
         self.initial_cleanup()
         self.convert_input_to_images()
@@ -674,6 +709,7 @@ class Pdf2PdfOcr:
             self.input_file_number_of_pages = len(image_file_list)
         self.check_avoid_high_pages()
         # TODO - create param to user pass image filters before OCR
+        self.check_blank_pages(image_file_list)
         self.autorotate_info(image_file_list)
         self.deskew(image_file_list)
         self.external_ocr(image_file_list)
@@ -726,6 +762,13 @@ This software is free, but if you like it, please donate to support new features
             paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address, pix_key, time_elapsed)
         self.log(success_message)
 
+    def check_rebuild_pdf(self):
+        self.rebuild_pdf_from_images = (
+                self.input_file_is_encrypted or self.input_file_type != "application/pdf" or self.use_deskew_mode or self.force_rebuild_mode)
+        if self.rebuild_pdf_from_images and self.ignore_existing_text:
+            self.cleanup()
+            raise Pdf2PdfOcrException("Rebuild from images and ignore existing text won't work together")
+
     def _merge_ocr(self, image_pdf_file_path, text_pdf_file_path, result_pdf_file_path, tag):
         # Merge OCR background PDF into the main PDF document making a PDF sandwich
         self.debug("Merging with OCR")
@@ -767,11 +810,7 @@ This software is free, but if you like it, please donate to support new features
     def build_final_output(self):
         # Start building final PDF.
         # First, should we rebuild source file?
-        rebuild_pdf_from_images = False
-        if self.input_file_is_encrypted or self.input_file_type != "application/pdf" or self.use_deskew_mode:
-            rebuild_pdf_from_images = True
-        #
-        if (not rebuild_pdf_from_images) and (not self.force_rebuild_mode):
+        if not self.rebuild_pdf_from_images:
             if not self.ocr_ignored:
                 self._merge_ocr(self.input_file, (self.tmp_dir + self.prefix + "-ocr.pdf"), (self.tmp_dir + self.prefix + "-OUTPUT.pdf"),
                                 "final-output")
@@ -922,9 +961,10 @@ This software is free, but if you like it, please donate to support new features
     def external_ocr(self, image_file_list):
         if self.ocr_engine in ["cuneiform", "tesseract"]:
             self.log("Starting OCR with {0}...".format(self.ocr_engine))
+            image_list_for_external_ocr = [x for x in image_file_list if x not in self.blank_pages]
             if self.ocr_engine == "cuneiform":
                 ocr_pool_map = self.main_pool.starmap_async(do_ocr_cuneiform,
-                                                            zip(image_file_list,
+                                                            zip(image_list_for_external_ocr,
                                                                 itertools.repeat(self.extra_ocr_flag),
                                                                 itertools.repeat(self.tess_langs),
                                                                 itertools.repeat(self.tmp_dir),
@@ -932,7 +972,7 @@ This software is free, but if you like it, please donate to support new features
                                                                 itertools.repeat(self.path_cuneiform)))
             elif self.ocr_engine == "tesseract":
                 ocr_pool_map = self.main_pool.starmap_async(do_ocr_tesseract,
-                                                            zip(image_file_list,
+                                                            zip(image_list_for_external_ocr,
                                                                 itertools.repeat(self.extra_ocr_flag),
                                                                 itertools.repeat(self.tess_langs),
                                                                 itertools.repeat(self.tess_psm),
@@ -953,17 +993,37 @@ This software is free, but if you like it, please donate to support new features
                     self.log("Waiting for OCR to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
                 time.sleep(0.5)
             #
+            if len(self.blank_pages) > 0:
+                for idx, blank_page_img in enumerate(self.blank_pages):
+                    blank_page_dimension = self.blank_pages_dimensions[idx]
+                    pdf_file_img = blank_page_img.replace("." + self.extension_images, ".pdf")
+                    do_create_blank_pdf(pdf_file_img, blank_page_dimension, self.image_resolution)
+            #
             self.log("OCR completed")
             self.ocr_ignored = False
         else:
             self.log("OCR ignored")
             self.ocr_ignored = True
 
+    def check_blank_pages(self, image_file_list):
+        self.log("Checking blank pages")
+        colors_size_pool_map = self.main_pool.starmap_async(do_check_img_colors_size, zip(image_file_list))
+        while not colors_size_pool_map.ready() and (self.main_pool is not None):
+            time.sleep(0.5)
+        blank_map_values = colors_size_pool_map.get()
+        for idx, t_image in enumerate(image_file_list):
+            color_size_info = blank_map_values[idx]
+            is_blank = (color_size_info[0] is not None) and (len(color_size_info[0]) == 1)
+            if is_blank:
+                self.blank_pages.append(t_image)
+                self.blank_pages_dimensions.append(color_size_info[1])
+
     def autorotate_info(self, image_file_list):
         if self.use_autorotate:
             self.debug("Calculating autorotate values...")
+            image_list_for_autorotate_info = [x for x in image_file_list if x not in self.blank_pages]
             autorotate_pool_map = self.main_pool.starmap_async(do_autorotate_info,
-                                                               zip(image_file_list,
+                                                               zip(image_list_for_autorotate_info,
                                                                    itertools.repeat(self.shell_mode),
                                                                    itertools.repeat(self.tmp_dir),
                                                                    itertools.repeat(self.tess_langs),
@@ -1006,8 +1066,7 @@ This software is free, but if you like it, please donate to support new features
                 try:
                     rotate_value = config_osd.getint('root', 'Rotate')
                 except configparser.NoOptionError:
-                    eprint("Error reading rotate page value from page {0}. Assuming zero as rotation angle.".format(
-                        osd_page_num))
+                    self.log("WARN: error reading rotate page value from page {0}. Assuming zero as rotation angle.".format(osd_page_num))
                     rotate_value = 0
                 rotation_angles.append(rotate_value)
             #
@@ -1029,7 +1088,8 @@ This software is free, but if you like it, please donate to support new features
     def deskew(self, image_file_list):
         if self.use_deskew_mode:
             self.debug("Applying deskew (will rebuild final PDF file)")
-            deskew_pool_map = self.main_pool.starmap_async(do_deskew, zip(image_file_list, itertools.repeat(self.deskew_threshold),
+            image_list_for_deskew = [x for x in image_file_list if x not in self.blank_pages]
+            deskew_pool_map = self.main_pool.starmap_async(do_deskew, zip(image_list_for_deskew, itertools.repeat(self.deskew_threshold),
                                                                           itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
             deskew_wait_rounds = 0
             while not deskew_pool_map.ready() and (self.main_pool is not None):
@@ -1042,19 +1102,29 @@ This software is free, but if you like it, please donate to support new features
     def convert_input_to_images(self):
         self.log("Converting input file to images...")
         if self.input_file_type == "application/pdf":
+            input_file_for_images = self.input_file
+            if self.ignore_existing_text:
+                input_file_for_images = self.tmp_dir + "_" + self.prefix + "-input_file_for_images.pdf"
+                # Credits for Kurt Pfeifle: https://stackoverflow.com/questions/24322338/remove-all-text-from-pdf-file
+                p_ignore_text = subprocess.Popen([self.path_gs, "-o", input_file_for_images, "-sDEVICE=pdfwrite", "-dFILTERTEXT", self.input_file],
+                                                 stdout=subprocess.DEVNULL,
+                                                 stderr=open(self.tmp_dir + "err_input_file_for_images-{0}.log".format(self.prefix),
+                                                             "wb"), shell=self.shell_mode)
+                p_ignore_text.wait()
+            #
             parallel_page_ranges = self.calculate_ranges()
             if parallel_page_ranges is not None:
                 # TODO - try to use method inside this class (encapsulate do_pdftoimage)
                 do_pdftoimage_result_codes = self.main_pool.starmap(do_pdftoimage, zip(itertools.repeat(self.path_pdftoppm),
                                                                                        parallel_page_ranges,
-                                                                                       itertools.repeat(self.input_file),
+                                                                                       itertools.repeat(input_file_for_images),
                                                                                        itertools.repeat(self.image_resolution),
                                                                                        itertools.repeat(self.tmp_dir),
                                                                                        itertools.repeat(self.prefix),
                                                                                        itertools.repeat(self.shell_mode)))
             else:
                 # Without page info, only alternative is going sequentialy (without range)
-                do_pdftoimage_result_code = do_pdftoimage(self.path_pdftoppm, None, self.input_file, self.image_resolution, self.tmp_dir,
+                do_pdftoimage_result_code = do_pdftoimage(self.path_pdftoppm, None, input_file_for_images, self.image_resolution, self.tmp_dir,
                                                           self.prefix, self.shell_mode)
                 do_pdftoimage_result_codes = [do_pdftoimage_result_code]
             #
@@ -1403,6 +1473,8 @@ Examples:
                         help="add extra command line flags in select OCR engine for all pages. Use with caution")
     parser.add_argument("--timeout", dest="timeout", action="store", default=None, type=int,
                         help="run with time limit in seconds")
+    parser.add_argument("--ignore-existing-text", dest="ignore_existing_text", action="store_true", default=False,
+                        help="don't OCR again native PDF text")
     parser.add_argument("-k", dest="keep_temps", action="store_true", default=False,
                         help="keep temporary files for debug")
     parser.add_argument("-v", dest="verbose_mode", action="store_true", default=False,
