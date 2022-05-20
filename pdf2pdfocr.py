@@ -31,7 +31,6 @@ import tempfile
 import time
 from collections import namedtuple
 from concurrent import futures
-from packaging.version import Version
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -41,12 +40,13 @@ from PIL import Image, ImageChops
 from PyPDF2.generic import ByteStringObject
 from PyPDF2.utils import PdfReadError
 from bs4 import BeautifulSoup
+from packaging.version import parse as parse_version
 from reportlab.lib.units import inch
 from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.11.0 marapurense '
+VERSION = '1.11.1 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -623,7 +623,7 @@ class Pdf2PdfOcr:
         if self.path_pdftoppm is None:
             eprint("pdftoppm (poppler) not found. Aborting...")
             sys.exit(1)
-        if self.get_pdftoppm_version() <= Version("0.70.0"):
+        if self.get_pdftoppm_version() <= parse_version("0.70.0"):
             self.log("External tool 'pdftoppm' is outdated. Please upgrade poppler")
         #
         self.path_pdffonts = shutil.which(self.cmd_pdffonts)
@@ -646,7 +646,7 @@ class Pdf2PdfOcr:
         else:
             qpdf_version = self.get_qpdf_version()
             minimum_version = "8.4.1"
-            if qpdf_version < Version(minimum_version):
+            if qpdf_version < parse_version(minimum_version):
                 self.log("External tool 'qpdf' is not on minimum version ({0}). Merge can be slow".format(minimum_version))
                 self.path_qpdf = None
         #
@@ -1273,8 +1273,8 @@ This software is free, but if you like it, please donate to support new features
             version_info = subprocess.check_output([self.path_tesseract, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             # self.debug("Tesseract full version info: {0}".format(version_info))
             version_info = version_info[1].lstrip(string.printable[10:])
-            l_version_info = Version(version_info)
-            result = int(l_version_info.major)
+            l_version_info = parse_version(version_info)
+            result = int(l_version_info.base_version.split(".")[0])
             self.debug("Tesseract version: {0}".format(result))
             return result
         except Exception as e:
@@ -1285,25 +1285,25 @@ This software is free, but if you like it, please donate to support new features
         try:
             version_info = subprocess.check_output([self.path_qpdf, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
-            l_version_info = Version(version_info)
+            l_version_info = parse_version(version_info)
             self.debug("Qpdf version: {0}".format(l_version_info))
             return l_version_info
         except Exception as e:
             legacy_version = "8.4.0"
             self.log("Error checking qpdf version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
-            return Version(legacy_version)
+            return parse_version(legacy_version)
 
     def get_pdftoppm_version(self):
         try:
             version_info = subprocess.check_output([self.path_pdftoppm, '-v'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
-            l_version_info = Version(version_info)
+            l_version_info = parse_version(version_info)
             self.debug("Pdftoppm version: {0}".format(l_version_info))
             return l_version_info
         except Exception as e:
             legacy_version = "0.70.0"
             self.log("Error checking pdftoppm version. Trying to continue assuming legacy version {0}. Exception was {1}".format(legacy_version, e))
-            return Version(legacy_version)
+            return parse_version(legacy_version)
 
     def calculate_ranges(self):
         """
