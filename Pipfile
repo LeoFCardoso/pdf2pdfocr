@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pypdf2 = "*"
+psutil = "*"
+pillow = "*"
+bs4 = "*"
+packaging = "*"
+reportlab = "*"
+lxml = "*"
+beautifulsoup4 = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
