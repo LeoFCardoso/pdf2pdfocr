@@ -11,19 +11,19 @@ RUN useradd docker \
 
 # Software dependencies [Start]
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  cuneiform \
-  qpdf \
-  file \
-  ghostscript \
-  imagemagick \
-  locales \
-  poppler-utils \
-  python3 \
-  python3-pip \
-  python3-setuptools\
-  tesseract-ocr \
-  tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng
-#  tesseract-ocr-all
+    cuneiform \
+    qpdf \
+    file \
+    ghostscript \
+    imagemagick \
+    locales \
+    poppler-utils \
+    python3 \
+    python3-pip \
+    python3-setuptools\
+    tesseract-ocr \
+    tesseract-ocr-osd tesseract-ocr-por tesseract-ocr-eng \
+  && rm -rf /var/lib/apt/lists/*
 
 # Allow IM to process PDF
 RUN rm /etc/ImageMagick-6/policy.xml
