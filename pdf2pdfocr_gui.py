@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##############################################################################
-# Copyright (c) 2018: Leonardo Cardoso
+# Copyright (c) 2022: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # Gui for PDF2PDFOCR
@@ -34,8 +34,15 @@ def show_gui(p_input_file_argument):
     files_group = parser.add_argument_group("Files", gooey_options={'columns': 1})
     files_group.add_argument("-i", dest="input_file", metavar="Input file / folder", action="store", required=True, widget="FileChooser",
                              default=p_input_file_argument, help="path for input file or folder")
-    files_group.add_argument("-o", dest="output_file", metavar="Output file", action="store", required=False, widget="FileChooser",
-                             help="force output file to the specified location (optional)")
+    files_group.add_argument("-o", dest="output_file", metavar="Output file", action="store", required=False, widget="FileSaver",
+                             help="force output file to the specified location (optional)",
+                             gooey_options={
+                                 'wildcard':
+                                     "PDF (*.pdf)|*.pdf|"
+                                     "All files (*.*)|*.*",
+                                 'message': "enter output file",
+                                 'default_file': "pdf2pdfocr_output.pdf"
+                             })
     #
     basic_options = parser.add_argument_group("Basic options")
     basic_options.add_argument("-s", dest="safe_mode", metavar='Safe (-s)', action="store_true", default=False,
