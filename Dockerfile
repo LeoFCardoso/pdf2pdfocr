@@ -1,6 +1,6 @@
 # pdf2pdfocr
 #
-# Dockerfile version 5.1
+# Dockerfile version 5.2
 #
 FROM ubuntu:20.04
 MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
@@ -9,7 +9,7 @@ RUN useradd docker \
   && mkdir /home/docker \
   && chown docker:docker /home/docker
 
-# Software dependencies [Start]
+# OS Software dependencies [Start]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cuneiform \
     qpdf \
@@ -28,16 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Allow IM to process PDF
 RUN rm /etc/ImageMagick-6/policy.xml
 
-# Software dependencies [End]
-
-# Python 3 and deps [Start]
-RUN pip3 install --upgrade packaging psutil Pillow reportlab \
- && pip3 install --upgrade lxml beautifulsoup4 \
- && pip3 install --upgrade wheel
-
-RUN pip3 install --upgrade PyPDF2
-# RUN pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
-# Python 3 and deps [End]
+# OS Software dependencies [End]
 
 RUN tesseract --list-langs    # just a test
 
@@ -48,6 +39,10 @@ RUN rm -rf /tmp/* /var/tmp/*
 COPY . /opt/install
 WORKDIR /opt/install
 RUN /opt/install/install_command
+
+# Python 3 and deps [Start]
+RUN pip3 install -r requirements.txt
+# Python 3 and deps [End]
 
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
