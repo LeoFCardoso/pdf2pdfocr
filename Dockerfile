@@ -1,15 +1,16 @@
 # pdf2pdfocr
 #
-# Dockerfile version 5.2
+# Dockerfile version 6.0 (Ubuntu 22.04)
 #
-FROM ubuntu:20.04
-MAINTAINER Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>
+FROM ubuntu:22.04
+LABEL maintainer="Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>"
 
 RUN useradd docker \
   && mkdir /home/docker \
   && chown docker:docker /home/docker
 
 # OS Software dependencies [Start]
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cuneiform \
     qpdf \
@@ -30,10 +31,8 @@ RUN rm /etc/ImageMagick-6/policy.xml
 
 # OS Software dependencies [End]
 
-RUN tesseract --list-langs    # just a test
-
-# Clean
-RUN rm -rf /tmp/* /var/tmp/*
+# Uncomment for test
+# RUN tesseract --list-langs
 
 # Install application
 COPY . /opt/install
@@ -41,12 +40,18 @@ WORKDIR /opt/install
 RUN /opt/install/install_command
 
 # Python 3 and deps [Start]
+
 RUN pip3 install -r requirements.txt
+
 # Python 3 and deps [End]
 
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 ENV OMP_THREAD_LIMIT 1
+ENV MAGICK_THREAD_LIMIT 1
+
+# Clean
+RUN rm -rf /tmp/* /var/tmp/*
 
 USER docker
 WORKDIR /home/docker

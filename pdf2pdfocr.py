@@ -82,7 +82,7 @@ def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param
     """
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
     psm_parameter = "-psm" if (param_tesseract_version == 3) else "--psm"
-    tess_command_line = [param_path_tesseract, '-l', param_tess_lang, psm_parameter, '0', param_image_file,
+    tess_command_line = [param_path_tesseract, '-l', "osd+" + param_tess_lang, psm_parameter, '0', param_image_file,
                          param_temp_dir + param_image_no_ext]
     ptess1 = subprocess.Popen(tess_command_line,
                               stdout=open(param_temp_dir + "autorot_tess_out_{0}.log".format(param_image_no_ext), "wb"),
@@ -1405,6 +1405,10 @@ if __name__ == '__main__':
     # Only a single CPU core is used with OMP_THREAD_LIMIT=1"
     # As we control number of parallel executions, set this env var for the entire script.
     os.environ['OMP_THREAD_LIMIT'] = '1'
+    #
+    # Adjust Imagemagick parallel control
+    # https://legacy.imagemagick.org/script/resources.php
+    os.environ['MAGICK_THREAD_LIMIT'] = '1'
     #
     # Arguments
     parser = argparse.ArgumentParser(
