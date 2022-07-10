@@ -1,3 +1,5 @@
+<meta name="flattr:id" content="pojqg0">
+
 # pdf2pdfocr
 A tool to OCR a PDF (or supported images) and add a text "layer" (a "pdf sandwich") in the original file making it a searchable PDF.
 The script uses only open source tools.

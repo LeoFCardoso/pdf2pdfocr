@@ -1,7 +1,7 @@
 wheel
 packaging==21.3
 beautifulsoup4==4.10.0
-lxml==4.9.0
+lxml==4.9.1
 Pillow==9.0.1
 psutil==5.9.1
 PyPDF2==1.27.12
