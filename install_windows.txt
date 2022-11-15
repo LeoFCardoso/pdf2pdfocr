@@ -8,7 +8,7 @@ rem ---------------
 scoop install --arch 64bit aria2 git
 scoop bucket add versions
 scoop install --arch 64bit file ghostscript imagemagick poppler tesseract qpdf
-scoop install --arch 64bit python38
+scoop install --arch 64bit python39
 
 rem --> Open new command prompt to refresh environment variables
 rem ---------------
@@ -19,18 +19,25 @@ rem ---------------
 aria2c "https://github.com/tesseract-ocr/tessdata/blob/main/por.traineddata?raw=true" --dir="%TESSDATA_PREFIX%"
 aria2c "https://github.com/tesseract-ocr/tessdata/blob/main/por.traineddata?raw=true" --dir="%TESSDATA_PREFIX%"
 
-rem Complete python with VENV and required libs
+rem Complete python with VENV and basic libs
 rem ---------------
 python3 -m venv "%USERPROFILE%\pdf2pdfocr-venv"
 
 cd "%USERPROFILE%\pdf2pdfocr-venv"
 .\Scripts\activate.bat
 python -m pip install --upgrade pip
-pip install wheel setuptools
-pip install reportlab psutil packaging
-pip install PyPDF2
-rem [TO USE GUI]
-pip install Gooey
+python -m pip install --upgrade setuptools
+
+rem TODO - add cuneiform command line on windows
+
+rem Install PDF2PDFOCR and VBS extension (SendTo)
+rem ---------------
+aria2c "https://github.com/LeoFCardoso/pdf2pdfocr/archive/master.zip" --dir="%TEMP%" --out="pdf2pdfocr.zip"
+7z x %TEMP%\pdf2pdfocr.zip -o%USERPROFILE%
+del %TEMP%\pdf2pdfocr.zip
+"%USERPROFILE%\pdf2pdfocr-venv\Scripts\python" -m pip install -r "%USERPROFILE%\pdf2pdfocr-master\requirements.txt"
+"%USERPROFILE%\pdf2pdfocr-venv\Scripts\python" -m pip install -r "%USERPROFILE%\pdf2pdfocr-master\requirements_gui.txt"
+
 rem ---------------
 rem If Gooey install fail, please install Visual C++ for Visual Studio Runtime and try again
 rem [x64] https://aka.ms/vs/16/release/vc_redist.x64.exe
@@ -41,17 +48,6 @@ rem If Gooey install fail, please install Build Tools (needed for GUI) and try a
 rem https://visualstudio.microsoft.com/visual-cpp-build-tools/
 rem Download / Run / Check C++ Build Tools / Check MSVC v142 and Windows 10 SDK / Install
 
-rem TODO - add cuneiform command line on windows
-
-rem Optional dependencies for cuneiform OCR engine
-rem ---------------
-pip install lxml beautifulsoup4
-
-rem Install PDF2PDFOCR and VBS extension (SendTo)
-rem ---------------
-aria2c "https://github.com/LeoFCardoso/pdf2pdfocr/archive/master.zip" --dir="%TEMP%" --out="pdf2pdfocr.zip"
-7z x %TEMP%\pdf2pdfocr.zip -o%USERPROFILE%
-del %TEMP%\pdf2pdfocr.zip
 move /Y "%USERPROFILE%\pdf2pdfocr-master" "%USERPROFILE%\pdf2pdfocr-venv"
 move /Y "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\pdf2pdfocr.vbs" "%APPDATA%\Microsoft\Windows\SendTo\"
 move /Y "%USERPROFILE%\pdf2pdfocr-venv\pdf2pdfocr-master\*.lnk" "%APPDATA%\Microsoft\Windows\SendTo\"

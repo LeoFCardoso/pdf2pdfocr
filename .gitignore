@@ -1,7 +1,9 @@
 .idea/*
-.parallel/*
-testDocs*/*
+__pycache__
+dev-pdf2pdfocr-venv/*
+image2pdf.py
 PDF2PDFOCR_Windows_Software/*
 regressionTest.txt
-teste.sh
 test.py
+testDocs*/*
+teste.sh

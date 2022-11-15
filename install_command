@@ -1,1 +1,1 @@
-cp pdf2pdfocr.py pdf2pdfocr_gui.py pdf2pdfocr_multibackground.py /usr/local/bin
+cp pdf2pdfocr pdf2pdfocr_gui /usr/local/bin

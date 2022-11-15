@@ -40,15 +40,21 @@ In macOS, you will need macports.
     # Install qpdf (optional for better performance)
     sudo port install qpdf
     # Install python 3 and other dependencies
-    sudo port install python37 py37-pip poppler poppler-data ImageMagick ghostscript
+    sudo port install python39 py39-pip poppler poppler-data ImageMagick ghostscript
     # Configure default python3 installer
-    sudo port select --set python3 python37
-    sudo port select --set pip pip37
-    # Install libs (please ignore warning messages)
-    sudo pip3 install packaging psutil reportlab Gooey
-    sudo pip3 install PyPDF2
-    # Install optional libs (for cuneiform)
-    sudo pip3 install lxml beautifulsoup4
+    sudo port select --set python python39
+    sudo port select --set python3 python39
+    sudo port select --set pip pip39
+    sudo port select --set pip3 pip39
+    # Configure venv and python deps in fixed home directory
+    python3 -m venv ~/pdf2pdfocr-venv
+    ~/pdf2pdfocr-venv/bin/python3 -m pip install --upgrade pip
+    ~/pdf2pdfocr-venv/bin/pip3 install --upgrade setuptools
+    ~/pdf2pdfocr-venv/bin/pip3 install -r requirements.txt
+    ~/pdf2pdfocr-venv/bin/pip3 install -r requirements_gui.txt
+    # Copy main scripts to venv
+    cp pdf2pdfocr.py pdf2pdfocr_gui.py pdf2pdfocr_multibackground.py ~/pdf2pdfocr-venv/bin
+    sudo ./install_command
 
 Cuneiform and qpdf are optional.
 

@@ -37,8 +37,8 @@ from xml.etree import ElementTree
 import PyPDF2
 import psutil
 from PIL import Image, ImageChops
+from PyPDF2.errors import PdfReadError
 from PyPDF2.generic import ByteStringObject
-from PyPDF2.utils import PdfReadError
 from bs4 import BeautifulSoup
 from packaging.version import parse as parse_version
 from reportlab.lib.units import inch
@@ -46,7 +46,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.11.2 marapurense '
+VERSION = '1.12.0 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -133,11 +133,11 @@ def do_ocr_tesseract(param_image_file, param_extra_ocr_flag, param_tess_lang, pa
         pdf_file = param_temp_dir + param_image_no_ext + ".pdf"
         pdf_file_tmp = param_temp_dir + param_image_no_ext + ".tesspdf"
         os.rename(pdf_file, pdf_file_tmp)
-        output_pdf = PyPDF2.PdfFileWriter()
+        output_pdf = PyPDF2.PdfWriter()
         desc_pdf_file_tmp = open(pdf_file_tmp, 'rb')
-        tess_pdf = PyPDF2.PdfFileReader(desc_pdf_file_tmp, strict=False)
-        for i in range(tess_pdf.getNumPages()):
-            imagepage = tess_pdf.getPage(i)
+        tess_pdf = PyPDF2.PdfReader(desc_pdf_file_tmp, strict=False)
+        for i in range(len(tess_pdf.pages)):
+            imagepage = tess_pdf.pages[i]
             output_pdf.addPage(imagepage)
         #
         output_pdf.removeImages(ignoreByteStringObject=False)
@@ -253,7 +253,7 @@ def do_check_img_colors_size(param_image_file):
 
 
 def do_create_blank_pdf(param_filename_pdf, param_dimensions, param_image_resolution):
-    blank_output_pdf = PyPDF2.PdfFileWriter()
+    blank_output_pdf = PyPDF2.PdfWriter()
     img_witdh = param_dimensions[0]
     img_width_pt = (img_witdh / param_image_resolution) * 72.0
     img_height = param_dimensions[1]
@@ -742,24 +742,21 @@ class Pdf2PdfOcr:
         #
         paypal_donate_link = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=leonardo%2ef%2ecardoso%40gmail%2ecom&lc=US&item_name" \
                              "=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
-        flattr_donate_link = "https://flattr.com/@pdf2pdfocr.devel"
         tippin_donate_link = "https://tippin.me/@LeoFCardoso"
         bitcoin_address = "173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ"
         dogecoin_address = "D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG"
         pix_key = "0726e8f2-7e59-488a-8abb-bda8f0d7d9ce"
-        success_message = """Success in {6:.3f} seconds!
+        success_message = """Success in {5:.3f} seconds!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
 {0}
----> Flattr
-{1}
 ---> Tippin.me
-{2}
----> Bitcoin (BTC) address: {3}
----> Dogecoin (DOGE) address: {4}
----> PIX (Brazilian Instant Payments) key: {5}
+{1}
+---> Bitcoin (BTC) address: {2}
+---> Dogecoin (DOGE) address: {3}
+---> PIX (Brazilian Instant Payments) key: {4}
 ---> Please contact for donations in other cryptocurrencies - https://github.com/LeoFCardoso/pdf2pdfocr""".format(
-            paypal_donate_link, flattr_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address, pix_key, time_elapsed)
+            paypal_donate_link, tippin_donate_link, bitcoin_address, dogecoin_address, pix_key, time_elapsed)
         self.log(success_message)
 
     def check_rebuild_pdf(self):
@@ -775,15 +772,15 @@ This software is free, but if you like it, please donate to support new features
         if self.path_qpdf is not None:
             try:
                 with open(image_pdf_file_path, "rb") as img_f:
-                    img_data = PyPDF2.PdfFileReader(img_f, strict=False)
-                    first_page_img_rect = img_data.getPage(0).mediaBox
+                    img_data = PyPDF2.PdfReader(img_f, strict=False)
+                    first_page_img_rect = img_data.pages[0].mediaBox
                     first_page_img_area = first_page_img_rect.getWidth() * first_page_img_rect.getHeight()
             except PdfReadError:
                 eprint("Warning: could not read input file page geometry. Merge may fail, please check input file.")
                 first_page_img_area = 0
             with open(text_pdf_file_path, "rb") as txt_f:
-                txt_data = PyPDF2.PdfFileReader(txt_f, strict=False)
-                first_page_txt_rect = txt_data.getPage(0).mediaBox
+                txt_data = PyPDF2.PdfReader(txt_f, strict=False)
+                first_page_txt_rect = txt_data.pages[0].mediaBox
                 first_page_txt_area = first_page_txt_rect.getWidth() * first_page_txt_rect.getHeight()
             #
             # Define overlay / underlay based on biggest page
@@ -892,9 +889,9 @@ This software is free, but if you like it, please donate to support new features
         rebuilt_pdf_file_list = sorted(glob.glob(self.tmp_dir + "REBUILD_{0}*.pdf".format(self.prefix)))
         self.debug("We have {0} rebuilt PDF files".format(len(rebuilt_pdf_file_list)))
         if len(rebuilt_pdf_file_list) > 0:
-            pdf_merger = PyPDF2.PdfFileMerger()
+            pdf_merger = PyPDF2.PdfMerger()
             for rebuilt_pdf_file in rebuilt_pdf_file_list:
-                pdf_merger.append(PyPDF2.PdfFileReader(rebuilt_pdf_file, strict=False))
+                pdf_merger.append(PyPDF2.PdfReader(rebuilt_pdf_file, strict=False))
             pdf_merger.write(self.tmp_dir + self.prefix + "-input_unprotected.pdf")
             pdf_merger.close()
         else:
@@ -947,9 +944,9 @@ This software is free, but if you like it, please donate to support new features
         text_pdf_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "pdf")))
         self.debug("We have {0} ocr'ed files".format(len(text_pdf_file_list)))
         if len(text_pdf_file_list) > 0:
-            pdf_merger = PyPDF2.PdfFileMerger()
+            pdf_merger = PyPDF2.PdfMerger()
             for text_pdf_file in text_pdf_file_list:
-                pdf_merger.append(PyPDF2.PdfFileReader(text_pdf_file, strict=False))
+                pdf_merger.append(PyPDF2.PdfReader(text_pdf_file, strict=False))
             pdf_merger.write(self.tmp_dir + self.prefix + "-ocr.pdf")
             pdf_merger.close()
         else:
@@ -1052,8 +1049,8 @@ This software is free, but if you like it, please donate to support new features
         if self.use_autorotate and not skip_autorotate:
             self.debug("Autorotate final output")
             file_source = open(param_source_file, 'rb')
-            pre_output_pdf = PyPDF2.PdfFileReader(file_source, strict=False)
-            final_output_pdf = PyPDF2.PdfFileWriter()
+            pre_output_pdf = PyPDF2.PdfReader(file_source, strict=False)
+            final_output_pdf = PyPDF2.PdfWriter()
             rotation_angles = []
             osd_page_num = 0
             for osd_information_file in list_osd:
@@ -1070,8 +1067,8 @@ This software is free, but if you like it, please donate to support new features
                     rotate_value = 0
                 rotation_angles.append(rotate_value)
             #
-            for i in range(pre_output_pdf.getNumPages()):
-                page = pre_output_pdf.getPage(i)
+            for i in range(len(pre_output_pdf.pages)):
+                page = pre_output_pdf.pages[i]
                 page.rotateClockwise(rotation_angles[i])
                 final_output_pdf.addPage(page)
             #
@@ -1094,6 +1091,7 @@ This software is free, but if you like it, please donate to support new features
             deskew_wait_rounds = 0
             while not deskew_pool_map.ready() and (self.main_pool is not None):
                 deskew_wait_rounds += 1
+                # noinspection PyProtectedMember
                 pages_processed = len([x for x in deskew_pool_map._value if x is not None])
                 if deskew_wait_rounds % 10 == 0:
                     self.log("Waiting for deskew to complete. {0}/{1} pages completed...".format(pages_processed, self.input_file_number_of_pages))
@@ -1171,22 +1169,22 @@ This software is free, but if you like it, please donate to support new features
     def validate_pdf_input_file(self):
         try:
             pdf_file_obj = open(self.input_file, 'rb')
-            pdf_reader = PyPDF2.PdfFileReader(pdf_file_obj, strict=False)
-        except PdfReadError as e:
+            pdf_reader = PyPDF2.PdfReader(pdf_file_obj, strict=False)
+        except PdfReadError:
             self.cleanup()
             raise Pdf2PdfOcrException("Corrupted PDF file detected. Aborting...")
         #
         try:
-            self.input_file_number_of_pages = pdf_reader.getNumPages()
+            self.input_file_number_of_pages = len(pdf_reader.pages)
         except Exception:
             eprint("Warning: could not read input file number of pages.")
             self.input_file_number_of_pages = None  # Will be calculated later based on number of image files to process
         #
         self.check_avoid_high_pages()
         #
-        self.input_file_is_encrypted = pdf_reader.isEncrypted
+        self.input_file_is_encrypted = pdf_reader.is_encrypted
         if not self.input_file_is_encrypted:
-            self.input_file_metadata = pdf_reader.documentInfo
+            self.input_file_metadata = pdf_reader.metadata
         #
         if self.check_text_mode:
             self.input_file_has_text = self.check_for_text()
@@ -1336,10 +1334,10 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Editing producer")
         param_source_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
         file_source = open(param_source_file, 'rb')
-        pre_output_pdf = PyPDF2.PdfFileReader(file_source, strict=False)
-        final_output_pdf = PyPDF2.PdfFileWriter()
-        for i in range(pre_output_pdf.getNumPages()):
-            page = pre_output_pdf.getPage(i)
+        pre_output_pdf = PyPDF2.PdfReader(file_source, strict=False)
+        final_output_pdf = PyPDF2.PdfWriter()
+        for i in range(len(pre_output_pdf.pages)):
+            page = pre_output_pdf.pages[i]
             final_output_pdf.addPage(page)
         info_dict_output = dict()
         # Our signature as a producer
@@ -1367,7 +1365,7 @@ This software is free, but if you like it, please donate to support new features
         if not read_producer:
             info_dict_output[producer_key] = our_name
         #
-        final_output_pdf.addMetadata(info_dict_output)
+        final_output_pdf.add_metadata(info_dict_output)
         #
         with open(self.output_file, 'wb') as f:
             final_output_pdf.write(f)
@@ -1385,6 +1383,7 @@ This software is free, but if you like it, please donate to support new features
 
 
 # To be used on signal handling
+# noinspection PyUnusedLocal,PyUnusedLocal
 def sigint_handler(signum, frame):
     global pdf2ocr
     pdf2ocr.cleanup()
@@ -1521,6 +1520,7 @@ Examples:
                         # https://stackoverflow.com/questions/48350257/how-to-exit-a-script-after-threadpoolexecutor-has-timed-out
                         import atexit
 
+                        # noinspection PyProtectedMember
                         atexit.unregister(futures.thread._python_exit)
                         executor.shutdown = lambda wait: None
                         #

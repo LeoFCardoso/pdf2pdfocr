@@ -1,0 +1,3 @@
+#!/bin/bash
+#
+~/pdf2pdfocr-venv/bin/python3 ~/pdf2pdfocr-venv/bin/pdf2pdfocr_gui.py "$@"

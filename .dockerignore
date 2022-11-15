@@ -1,4 +1,12 @@
 # Ignore when building image
-testDocs/*
-testDocs2/*
+.git
+#
+.idea/*
+__pycache__
+dev-pdf2pdfocr-venv/*
+image2pdf.py
 PDF2PDFOCR_Windows_Software/*
+regressionTest.txt
+test.py
+testDocs*/*
+teste.sh
