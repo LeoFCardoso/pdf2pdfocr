@@ -46,7 +46,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.12.0 marapurense '
+VERSION = '1.12.1 marapurense '
 
 
 def eprint(*args, **kwargs):
