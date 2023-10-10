@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##############################################################################
-# Copyright (c) 2022: Leonardo Cardoso
+# Copyright (c) 2023: Leonardo Cardoso
 # https://github.com/LeoFCardoso/pdf2pdfocr
 ##############################################################################
 # OCR a PDF and add a text "layer" in the original file (a so called "pdf sandwich")
@@ -46,7 +46,7 @@ from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.12.1 marapurense '
+VERSION = '1.12.2 marapurense '
 
 
 def eprint(*args, **kwargs):
@@ -191,7 +191,7 @@ def do_ocr_cuneiform(param_image_file, param_extra_ocr_flag, param_cunei_lang, p
     #
     bs_parser = "lxml"
     if os.path.isfile(param_temp_dir + param_image_no_ext + ".hocr"):
-        # Try to fix unclosed meta tags, as cuneiform HOCR may be not well formed
+        # Try to fix unclosed meta tags, as cuneiform HOCR may be not well-formed
         with open(param_temp_dir + param_image_no_ext + ".hocr", "r") as fpr:
             corrected_hocr = str(BeautifulSoup(fpr, bs_parser))
     else:

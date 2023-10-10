@@ -37,7 +37,7 @@ RUN rm /etc/ImageMagick-6/policy.xml
 # Install application
 COPY . /opt/install
 WORKDIR /opt/install
-COPY pdf2pdfocr.py pdf2pdfocr_gui.py pdf2pdfocr_multibackground.py /usr/local/bin
+COPY pdf2pdfocr.py pdf2pdfocr_gui.py pdf2pdfocr_multibackground.py /usr/local/bin/
 
 # Python 3 and deps [Start]
 
