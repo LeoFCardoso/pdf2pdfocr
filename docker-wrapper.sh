@@ -1,4 +1,4 @@
 #!/bin/bash
 
 cd /home/docker
-exec pdf2pdfocr.py "$@"
+exec /opt/pdf2pdfocr/venv/bin/python3 /opt/pdf2pdfocr/pdf2pdfocr.py "$@"

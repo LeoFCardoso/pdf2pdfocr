@@ -7,24 +7,32 @@ This software is free, but if you like it, please donate to support new features
 
 [![paypal](https://www.paypalobjects.com/en_US/GB/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=PZZU5APJGSWVA&lc=GB&item_name=pdf2pdfocr%20development&currency_code=USD)
 
-Bitcoin (BTC) address: [173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ](https://blockchair.com/bitcoin/address/173D1zQQyzvCCCek9b1SpDvh7JikBEdtRJ)
+Bitcoin (BTC) address: [bc1qqd4pj0pymptwg523ems8pxgjwdslh7ujv5egqg](https://blockchair.com/bitcoin/address/bc1qqd4pj0pymptwg523ems8pxgjwdslh7ujv5egqg)
 
 # tips
 Tips are also welcome!
 
-[![tippin.me](https://badgen.net/badge/%E2%9A%A1%EF%B8%8Ftippin.me/@LeoFCardoso/F0918E)](https://tippin.me/@LeoFCardoso)
-
 Dogecoin (DOGE) address: [D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG](https://blockchair.com/dogecoin/address/D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG)
 
-PIX (Brazilian Instant Payments): 0726e8f2-7e59-488a-8abb-bda8f0d7d9ce
+PIX (Brazilian Instant Payments): 54fdb88f-dae3-433b-9e4d-e0c0408daf74
 
-[![chave PIX](https://raw.githubusercontent.com/LeoFCardoso/pdf2pdfocr/master/pix_qrcode.png)](https://nubank.com.br/pagar/414xb/ndt4lfy9GT)
+[![chave PIX](https://raw.githubusercontent.com/LeoFCardoso/pdf2pdfocr/master/pix_qrcode.png)]()
 
 Please contact for donations and tips in other cryptocurrencies.
 
 # installation
-In Linux, installation is straightforward. Just install required packages and be happy.
-You can use "install_command" script to copy required files to "/usr/local/bin".
+In Linux, please try these instructions (thanks to @nicoursi).
+
+    # 1. Create the virtual environment
+    python3 -m venv ~/pdf2pdfocr-venv
+    # 2. Activate the virtual environment
+    source ~/pdf2pdfocr-venv/bin/activate
+    # 3. Install dependencies
+    pip install -r requirements.txt
+    # 4. Copy Python files to the virtual environment bin directory
+    cp *.py ~/pdf2pdfocr-venv/bin/
+    # 5. Copy executables to /usr/local/bin
+    cp pdf2pdfocr pdf2pdfocr_gui /usr/local/bin
 
 In macOS, you will need macports.
     
@@ -40,12 +48,12 @@ In macOS, you will need macports.
     # Install qpdf (optional for better performance)
     sudo port install qpdf
     # Install python 3 and other dependencies
-    sudo port install python39 py39-pip poppler poppler-data ImageMagick ghostscript
+    sudo port install python312 py312-pip poppler poppler-data ImageMagick ghostscript
     # Configure default python3 installer
-    sudo port select --set python python39
-    sudo port select --set python3 python39
-    sudo port select --set pip pip39
-    sudo port select --set pip3 pip39
+    sudo port select --set python python312
+    sudo port select --set python3 python312
+    sudo port select --set pip pip312
+    sudo port select --set pip3 pip312
     # Configure venv and python deps in fixed home directory
     python3 -m venv ~/pdf2pdfocr-venv
     ~/pdf2pdfocr-venv/bin/python3 -m pip install --upgrade pip
