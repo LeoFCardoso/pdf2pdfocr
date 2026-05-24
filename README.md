@@ -14,7 +14,7 @@ Tips are also welcome!
 
 Dogecoin (DOGE) address: [D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG](https://blockchair.com/dogecoin/address/D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG)
 
-PIX (Brazilian Instant Payments): 54fdb88f-dae3-433b-9e4d-e0c0408daf74
+PIX (Brazilian Instant Payments): d3222ec1-74e6-40e0-a2d6-8f2d8e9f1568
 
 [![chave PIX](https://raw.githubusercontent.com/LeoFCardoso/pdf2pdfocr/master/pix_qrcode.png)]()
 
@@ -27,7 +27,7 @@ In Linux, please try these instructions (thanks to @nicoursi).
     python3 -m venv ~/pdf2pdfocr-venv
     # 2. Activate the virtual environment
     source ~/pdf2pdfocr-venv/bin/activate
-    # 3. Install dependencies
+    # 3. Install Python dependencies
     pip install -r requirements.txt
     # 4. Copy Python files to the virtual environment bin directory
     cp *.py ~/pdf2pdfocr-venv/bin/
@@ -42,18 +42,16 @@ In macOS, you will need macports.
     # Install Macports from https://www.macports.org/install.php
     sudo port selfupdate
     # Install tesseract as main ocr engine (Portuguese included below - please add your preferred languages)
-    sudo port install git libtool automake autoconf tesseract tesseract-por tesseract-osd tesseract-eng
-    # Install cuneiform (the optional ocr engine - see flag "-c")
-    sudo port install cuneiform
-    # Install qpdf (optional for better performance)
+    sudo port install git tesseract tesseract-por tesseract-osd tesseract-eng
+    # Install qpdf
     sudo port install qpdf
     # Install python 3 and other dependencies
-    sudo port install python312 py312-pip poppler poppler-data ImageMagick ghostscript
+    sudo port install python314 py314-pip poppler poppler-data ImageMagick7 ghostscript
     # Configure default python3 installer
-    sudo port select --set python python312
-    sudo port select --set python3 python312
-    sudo port select --set pip pip312
-    sudo port select --set pip3 pip312
+    sudo port select --set python python314
+    sudo port select --set python3 python314
+    sudo port select --set pip pip314
+    sudo port select --set pip3 pip314
     # Configure venv and python deps in fixed home directory
     python3 -m venv ~/pdf2pdfocr-venv
     ~/pdf2pdfocr-venv/bin/python3 -m pip install --upgrade pip
@@ -63,8 +61,6 @@ In macOS, you will need macports.
     # Copy main scripts to venv
     cp pdf2pdfocr.py pdf2pdfocr_gui.py pdf2pdfocr_multibackground.py ~/pdf2pdfocr-venv/bin
     sudo ./install_command
-
-Cuneiform and qpdf are optional.
 
 In Windows, you will need to manually install required software. Please read "install_windows.txt" file and try the tutorial with scoop tool. It's easy! :-)
 

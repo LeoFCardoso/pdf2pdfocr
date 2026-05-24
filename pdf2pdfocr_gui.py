@@ -86,7 +86,7 @@ def show_gui(p_input_file_argument):
     #
     advanced_options = parser.add_argument_group("Advanced options")
     advanced_options.add_argument("-c", dest="ocr_engine", metavar='OCR engine (-c)', action="store", type=str, default="tesseract",
-                                  help="select the OCR engine to use ", widget="Dropdown", choices=["tesseract", "cuneiform", "no_ocr"])
+                                  help="select the OCR engine to use ", widget="Dropdown", choices=["tesseract", "no_ocr"])
     advanced_options.add_argument("-j", dest="parallel_percent", metavar='Parallel (-j)', action="store", type=float, default=1.0,
                                   help="run this percentual jobs in parallel (0 - 1.0]\nmultiply with the number of CPU cores, default = 1 [all "
                                        "cores] ")
@@ -95,9 +95,9 @@ def show_gui(p_input_file_argument):
                                        "is for quality = 300")
     advanced_options.add_argument("-e", dest="text_generation_strategy", metavar='Text generation (-e)', action="store", default="tesseract",
                                   type=str, help="specify how text is generated in final pdf file [tesseract only] ",
-                                  widget="Dropdown", choices=["tesseract", "native"])
+                                  widget="Dropdown", choices=["tesseract"])
     advanced_options.add_argument("-l", dest="tess_langs", metavar='Languages (-l)', action="store", required=False, default="por",
-                                  help="force tesseract or cuneiform to use specific language ")
+                                  help="force tesseract to use specific language ")
     advanced_options.add_argument("-m", dest="tess_psm", metavar='Tesseract PSM (-m)', action="store", required=False,
                                   help="force tesseract to use HOCR with specific \"pagesegmode\"\n(default: tesseract "
                                        "HOCR default = 1) [tesseract only]. Use with caution ")

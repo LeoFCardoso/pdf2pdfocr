@@ -20,7 +20,6 @@ import math
 import multiprocessing
 import os
 import random
-import re
 import shlex
 import shutil
 import signal
@@ -29,24 +28,19 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections import namedtuple
 from concurrent import futures
 from pathlib import Path
-from xml.etree import ElementTree
 
-import PyPDF2
+import pypdf
 import psutil
 from PIL import Image, ImageChops
-from PyPDF2.errors import PdfReadError
-from PyPDF2.generic import ByteStringObject
-from bs4 import BeautifulSoup
+from pypdf.errors import PdfReadError
+from pypdf.generic import ByteStringObject
 from packaging.version import parse as parse_version
-from reportlab.lib.units import inch
-from reportlab.pdfgen.canvas import Canvas
 
 __author__ = 'Leonardo F. Cardoso'
 
-VERSION = '1.12.4 marapurense '
+VERSION = '1.2.0 marapurense'
 
 
 def eprint(*args, **kwargs):
@@ -75,13 +69,13 @@ def do_pdftoimage(param_path_pdftoppm, param_page_range, param_input_file, param
     return pimage.returncode
 
 
-def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract, param_tesseract_version):
+def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param_tess_lang, param_path_tesseract):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do autorotate of images based on tesseract (execution with 'psm 0') information.
     """
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
-    psm_parameter = "-psm" if (param_tesseract_version == 3) else "--psm"
+    psm_parameter = "--psm"
     tess_command_line = [param_path_tesseract, '-l', "osd+" + param_tess_lang, psm_parameter, '0', param_image_file,
                          param_temp_dir + param_image_no_ext]
     ptess1 = subprocess.Popen(tess_command_line,
@@ -91,12 +85,12 @@ def do_autorotate_info(param_image_file, param_shell_mode, param_temp_dir, param
     ptess1.wait()
 
 
-def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_mogrify):
+def do_deskew(param_image_file, param_threshold, param_shell_mode, param_path_magick):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Do a deskew of image.
     """
-    pd = subprocess.Popen([param_path_mogrify, '-deskew', param_threshold, param_image_file], shell=param_shell_mode)
+    pd = subprocess.Popen([param_path_magick, 'mogrify', '-deskew', param_threshold, param_image_file], shell=param_shell_mode)
     pd.wait()
     return True
 
@@ -109,16 +103,13 @@ def do_ocr_tesseract(param_image_file, param_extra_ocr_flag, param_tess_lang, pa
     """
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
     tess_command_line = [param_path_tesseract]
-    if type(param_extra_ocr_flag) == str:
+    if isinstance(param_extra_ocr_flag, str):
         tess_command_line.extend(param_extra_ocr_flag.split(" "))
     tess_command_line.extend(['-l', param_tess_lang])
     if param_text_generation_strategy == "tesseract":
         tess_command_line += ['-c', 'tessedit_create_pdf=1']
         if param_tess_can_textonly_pdf:
             tess_command_line += ['-c', 'textonly_pdf=1']
-    #
-    if param_text_generation_strategy == "native":
-        tess_command_line += ['-c', 'tessedit_create_hocr=1']
     #
     tess_command_line += [
         '-c', 'tessedit_create_txt=1',
@@ -133,89 +124,37 @@ def do_ocr_tesseract(param_image_file, param_extra_ocr_flag, param_tess_lang, pa
         pdf_file = param_temp_dir + param_image_no_ext + ".pdf"
         pdf_file_tmp = param_temp_dir + param_image_no_ext + ".tesspdf"
         os.rename(pdf_file, pdf_file_tmp)
-        output_pdf = PyPDF2.PdfWriter()
+        output_pdf = pypdf.PdfWriter()
         desc_pdf_file_tmp = open(pdf_file_tmp, 'rb')
-        tess_pdf = PyPDF2.PdfReader(desc_pdf_file_tmp, strict=False)
+        tess_pdf = pypdf.PdfReader(desc_pdf_file_tmp, strict=False)
         for i in range(len(tess_pdf.pages)):
             imagepage = tess_pdf.pages[i]
-            output_pdf.addPage(imagepage)
+            output_pdf.add_page(imagepage)
         #
-        output_pdf.removeImages(ignoreByteStringObject=False)
-        out_page = output_pdf.getPage(0)  # Tesseract PDF is always one page in this software
+        output_pdf.remove_images()
+        out_page = output_pdf.pages[0]  # Tesseract PDF is always one page in this software
         # Hack to obtain smaller file (delete the image reference)
-        out_page["/Resources"][PyPDF2.generic.createStringObject("/XObject")] = PyPDF2.generic.ArrayObject()
-        out_page.compressContentStreams()
+        out_page["/Resources"][pypdf.generic.create_string_object("/XObject")] = pypdf.generic.ArrayObject()
+        out_page.compress_content_streams()
         with open(pdf_file, 'wb') as f:
             output_pdf.write(f)
         desc_pdf_file_tmp.close()
         # Try to save some temp space as tesseract generate PDF with same size of image
         if param_delete_temps:
             os.remove(pdf_file_tmp)
-    #
-    if param_text_generation_strategy == "native":
-        hocr = HocrTransform(param_temp_dir + param_image_no_ext + ".hocr", 300)
-        hocr.to_pdf(param_temp_dir + param_image_no_ext + ".pdf", image_file_name=None, show_bounding_boxes=False,
-                    invisible_text=True)
     # Track progress in all situations
     Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
 
 
-def do_ocr_cuneiform(param_image_file, param_extra_ocr_flag, param_cunei_lang, param_temp_dir, param_shell_mode, param_path_cunei):
-    """
-    Will be called from multiprocessing, so no global variables are allowed.
-    Do OCR of image with cuneiform
-    """
-    param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
-    cunei_command_line = [param_path_cunei]
-    if type(param_extra_ocr_flag) == str:
-        cunei_command_line.extend(param_extra_ocr_flag.split(" "))
-    cunei_command_line.extend(['-l', param_cunei_lang.lower(), "-f", "hocr", "-o", param_temp_dir + param_image_no_ext + ".hocr", param_image_file])
-    #
-    pocr = subprocess.Popen(cunei_command_line,
-                            stdout=open(param_temp_dir + "cuneif_out_{0}.log".format(param_image_no_ext), "wb"),
-                            stderr=open(param_temp_dir + "cuneif_err_{0}.log".format(param_image_no_ext), "wb"),
-                            shell=param_shell_mode)
-    pocr.wait()
-    # Sometimes, cuneiform fails to OCR and expected HOCR file is missing. Experiments show that English can be used to try a workaround.
-    if not os.path.isfile(param_temp_dir + param_image_no_ext + ".hocr") and param_cunei_lang.lower() != "eng":
-        eprint("Warning: fail to OCR file '{0}'. Trying again with English language.".format(param_image_no_ext))
-        cunei_command_line = [param_path_cunei]
-        if type(param_extra_ocr_flag) == str:
-            cunei_command_line.extend(param_extra_ocr_flag.split(" "))
-        cunei_command_line.extend(['-l', "eng", "-f", "hocr", "-o", param_temp_dir + param_image_no_ext + ".hocr", param_image_file])
-        pocr = subprocess.Popen(cunei_command_line,
-                                stdout=open(param_temp_dir + "cuneif_out_eng_{0}.log".format(param_image_no_ext), "wb"),
-                                stderr=open(param_temp_dir + "cuneif_err_eng_{0}.log".format(param_image_no_ext), "wb"),
-                                shell=param_shell_mode)
-        pocr.wait()
-    #
-    bs_parser = "lxml"
-    if os.path.isfile(param_temp_dir + param_image_no_ext + ".hocr"):
-        # Try to fix unclosed meta tags, as cuneiform HOCR may be not well-formed
-        with open(param_temp_dir + param_image_no_ext + ".hocr", "r") as fpr:
-            corrected_hocr = str(BeautifulSoup(fpr, bs_parser))
-    else:
-        eprint("Warning: fail to OCR file '{0}'. Page will not contain text.".format(param_image_no_ext))
-        # TODO try to use the same size as original PDF page (bbox is hard coded by now to look like A4 page - portrait)
-        corrected_hocr = str(BeautifulSoup('<div class="ocr_page" id="page_1" title="image x; bbox 0 0 1700 2400">', bs_parser))
-    with open(param_temp_dir + param_image_no_ext + ".fixed.hocr", "w") as fpw:
-        fpw.write(corrected_hocr)
-    #
-    hocr = HocrTransform(param_temp_dir + param_image_no_ext + ".fixed.hocr", 300)
-    hocr.to_pdf(param_temp_dir + param_image_no_ext + ".pdf", image_file_name=None, show_bounding_boxes=False, invisible_text=True)
-    # Track progress
-    Path(param_temp_dir + param_image_no_ext + ".tmp").touch()  # .tmp files are used to track overall progress
-
-
-def do_rebuild(param_image_file, param_path_convert, param_convert_params, param_tmp_dir, param_shell_mode):
+def do_rebuild(param_image_file, param_path_magick, param_magick_params, param_tmp_dir, param_shell_mode):
     """
     Will be called from multiprocessing, so no global variables are allowed.
     Create one PDF file from image file.
     """
     param_image_no_ext = os.path.splitext(os.path.basename(param_image_file))[0]
     # http://stackoverflow.com/questions/79968/split-a-string-by-spaces-preserving-quoted-substrings-in-python
-    convert_params_list = shlex.split(param_convert_params)
-    command_rebuild = [param_path_convert, param_image_file] + convert_params_list + [param_tmp_dir + "REBUILD_" + param_image_no_ext + ".pdf"]
+    convert_params_list = shlex.split(param_magick_params)
+    command_rebuild = [param_path_magick, param_image_file] + convert_params_list + [param_tmp_dir + "REBUILD_" + param_image_no_ext + ".pdf"]
     prebuild = subprocess.Popen(
         command_rebuild,
         stdout=open(param_tmp_dir + "convert_log_{0}.log".format(param_image_no_ext), "wb"),
@@ -253,12 +192,12 @@ def do_check_img_colors_size(param_image_file):
 
 
 def do_create_blank_pdf(param_filename_pdf, param_dimensions, param_image_resolution):
-    blank_output_pdf = PyPDF2.PdfWriter()
+    blank_output_pdf = pypdf.PdfWriter()
     img_witdh = param_dimensions[0]
     img_width_pt = (img_witdh / param_image_resolution) * 72.0
     img_height = param_dimensions[1]
     img_height_pt = (img_height / param_image_resolution) * 72.0
-    blank_output_pdf.addBlankPage(img_width_pt, img_height_pt)
+    blank_output_pdf.add_blank_page(img_width_pt, img_height_pt)
     with open(param_filename_pdf, 'wb') as f:
         blank_output_pdf.write(f)
         f.close()
@@ -271,188 +210,16 @@ def percentual_float(x):
     return x
 
 
-class HocrTransformError(Exception):
-    pass
-
-
-class HocrTransform:
-    """
-    A class for converting documents from the hOCR format.
-    For details of the hOCR format, see:
-    http://docs.google.com/View?docid=dfxcv4vc_67g844kf
-
-    Adapted from https://github.com/jbarlow83/OCRmyPDF/blob/master/ocrmypdf/hocrtransform.py
-    """
-
-    def __init__(self, hocr_file_name, dpi):
-        self.rect = namedtuple('Rect', ['x1', 'y1', 'x2', 'y2'])
-        self.dpi = dpi
-        self.boxPattern = re.compile(r'bbox((\s+\d+){4})')
-        self.hocr = ElementTree.parse(hocr_file_name)
-        # if the hOCR file has a namespace, ElementTree requires its use to
-        # find elements
-        matches = re.match(r'({.*})html', self.hocr.getroot().tag)
-        self.xmlns = ''
-        if matches:
-            self.xmlns = matches.group(1)
-        # get dimension in pt (not pixel!!!!) of the OCRed image
-        self.width, self.height = None, None
-        for div in self.hocr.findall(
-                ".//%sdiv[@class='ocr_page']" % self.xmlns):
-            coords = self.element_coordinates(div)
-            pt_coords = self.pt_from_pixel(coords)
-            self.width = pt_coords.x2 - pt_coords.x1
-            self.height = pt_coords.y2 - pt_coords.y1
-            # there shouldn't be more than one, and if there is, we don't want it
-            break
-        if self.width is None or self.height is None:
-            raise HocrTransformError("hocr file is missing page dimensions")
-
-    def __str__(self):
-        """
-        Return the textual content of the HTML body
-        """
-        if self.hocr is None:
-            return ''
-        body = self.hocr.find(".//%sbody" % self.xmlns)
-        if body:
-            return self._get_element_text(body)
-        else:
-            return ''
-
-    def _get_element_text(self, element):
-        """
-        Return the textual content of the element and its children
-        """
-        text = ''
-        if element.text is not None:
-            text += element.text
-        for child in element:
-            text += self._get_element_text(child)
-        if element.tail is not None:
-            text += element.tail
-        return text
-
-    def element_coordinates(self, element):
-        """
-        Returns a tuple containing the coordinates of the bounding box around
-        an element
-        """
-        out = (0, 0, 0, 0)
-        if 'title' in element.attrib:
-            matches = self.boxPattern.search(element.attrib['title'])
-            if matches:
-                coords = matches.group(1).split()
-                out = self.rect._make(int(coords[n]) for n in range(4))
-        return out
-
-    def pt_from_pixel(self, pxl):
-        """
-        Returns the quantity in PDF units (pt) given quantity in pixels
-        """
-        return self.rect._make(
-            (c / self.dpi * inch) for c in pxl)
-
-    def replace_unsupported_chars(self, s):
-        """
-        Given an input string, returns the corresponding string that:
-        - is available in the helvetica facetype
-        - does not contain any ligature (to allow easy search in the PDF file)
-        """
-        # The 'u' before the character to replace indicates that it is a
-        # unicode character
-        s = s.replace(u"ﬂ", "fl")
-        s = s.replace(u"ﬁ", "fi")
-        return s
-
-    def to_pdf(self, out_file_name, image_file_name=None, show_bounding_boxes=False, fontname="Helvetica",
-               invisible_text=True):
-        """
-        Creates a PDF file with an image superimposed on top of the text.
-        Text is positioned according to the bounding box of the lines in
-        the hOCR file.
-        The image need not be identical to the image used to create the hOCR
-        file.
-        It can have a lower resolution, different color mode, etc.
-        """
-        # create the PDF file
-        # page size in points (1/72 in.)
-        pdf = Canvas(
-            out_file_name, pagesize=(self.width, self.height), pageCompression=1)
-        # draw bounding box for each paragraph
-        # light blue for bounding box of paragraph
-        pdf.setStrokeColorRGB(0, 1, 1)
-        # light blue for bounding box of paragraph
-        pdf.setFillColorRGB(0, 1, 1)
-        pdf.setLineWidth(0)  # no line for bounding box
-        for elem in self.hocr.findall(
-                ".//%sp[@class='%s']" % (self.xmlns, "ocr_par")):
-            elemtxt = self._get_element_text(elem).rstrip()
-            if len(elemtxt) == 0:
-                continue
-            pxl_coords = self.element_coordinates(elem)
-            pt = self.pt_from_pixel(pxl_coords)
-            # draw the bbox border
-            if show_bounding_boxes:
-                pdf.rect(pt.x1, self.height - pt.y2, pt.x2 - pt.x1, pt.y2 - pt.y1, fill=1)
-        # check if element with class 'ocrx_word' are available
-        # otherwise use 'ocr_line' as fallback
-        elemclass = "ocr_line"
-        if self.hocr.find(".//%sspan[@class='ocrx_word']" % self.xmlns) is not None:
-            elemclass = "ocrx_word"
-        # itterate all text elements
-        # light green for bounding box of word/line
-        pdf.setStrokeColorRGB(1, 0, 0)
-        pdf.setLineWidth(0.5)  # bounding box line width
-        pdf.setDash(6, 3)  # bounding box is dashed
-        pdf.setFillColorRGB(0, 0, 0)  # text in black
-        for elem in self.hocr.findall(".//%sspan[@class='%s']" % (self.xmlns, elemclass)):
-            elemtxt = self._get_element_text(elem).rstrip()
-            elemtxt = self.replace_unsupported_chars(elemtxt)
-            if len(elemtxt) == 0:
-                continue
-            pxl_coords = self.element_coordinates(elem)
-            pt = self.pt_from_pixel(pxl_coords)
-            # draw the bbox border
-            if show_bounding_boxes:
-                pdf.rect(pt.x1, self.height - pt.y2, pt.x2 - pt.x1, pt.y2 - pt.y1, fill=0)
-            text = pdf.beginText()
-            fontsize = pt.y2 - pt.y1
-            text.setFont(fontname, fontsize)
-            if invisible_text:
-                text.setTextRenderMode(3)  # Invisible (indicates OCR text)
-            # set cursor to bottom left corner of bbox (adjust for dpi)
-            text.setTextOrigin(pt.x1, self.height - pt.y2)
-            # scale the width of the text to fill the width of the bbox
-            text.setHorizScale(100 * (pt.x2 - pt.x1) / pdf.stringWidth(elemtxt, fontname, fontsize))
-            # write the text to the page
-            text.textLine(elemtxt)
-            pdf.drawText(text)
-        #
-        # put the image on the page, scaled to fill the page
-        if image_file_name is not None:
-            pdf.drawImage(image_file_name, 0, 0, width=self.width, height=self.height)
-        # finish up the page and save it
-        pdf.showPage()
-        pdf.save()
-        #
-
-
 class Pdf2PdfOcrException(Exception):
     pass
 
 
 class Pdf2PdfOcr:
     # External tools command. If you can't edit your path, adjust here to match your system
-    cmd_cuneiform = "cuneiform"
-    path_cuneiform = ""
     cmd_tesseract = "tesseract"
     path_tesseract = ""
-    cmd_convert = "convert"
-    cmd_magick = "magick"  # used on Windows with ImageMagick 7+ (to avoid conversion path problems)
-    path_convert = ""
-    cmd_mogrify = "mogrify"
-    path_mogrify = ""
+    cmd_magick = "magick"
+    path_magick = ""
     cmd_file = "file"
     path_file = ""
     cmd_pdftoppm = "pdftoppm"
@@ -468,10 +235,10 @@ class Pdf2PdfOcr:
     cmd_qpdf = "qpdf"
     path_qpdf = ""
 
-    tesseract_can_textonly_pdf = False
+    tesseract_can_textonly_pdf = True
     """Since Tesseract 3.05.01, new use case of tesseract - https://github.com/tesseract-ocr/tesseract/issues/660"""
 
-    tesseract_version = 3
+    tesseract_version = 4
     """Tesseract version installed on system"""
 
     extension_images = "jpg"
@@ -488,7 +255,7 @@ class Pdf2PdfOcr:
 
     shell_mode = (sys.platform == "win32")
     """How to run external process? In Windows use Shell=True
-    http://stackoverflow.com/questions/5658622/python-subprocess-popen-environment-path
+    https://stackoverflow.com/questions/5658622/python-subprocess-popen-environment-path
     "Also, on Windows with shell=False, it pays no attention to PATH at all,
     and will only look in relative to the current working directory."
     """
@@ -511,6 +278,7 @@ class Pdf2PdfOcr:
         self.ignore_existing_text = args.ignore_existing_text
         self.blank_pages = []
         self.blank_pages_dimensions = []
+        self.blank_pages_numbers = []
         self.check_protection_mode = args.check_protection_mode
         self.avoid_high_pages_mode = args.max_pages is not None
         self.avoid_high_pages_pages = args.max_pages
@@ -550,11 +318,11 @@ class Pdf2PdfOcr:
             self.tess_psm = "1"  # Default
         self.image_resolution = args.image_resolution
         self.text_generation_strategy = args.text_generation_strategy
-        if self.text_generation_strategy not in ["tesseract", "native"]:
+        if self.text_generation_strategy not in ["tesseract"]:
             raise Pdf2PdfOcrException("{0} is not a valid text generation strategy. Exiting.".format(self.text_generation_strategy))
         self.ocr_ignored = False
         self.ocr_engine = args.ocr_engine
-        if self.ocr_engine not in ["tesseract", "cuneiform", "no_ocr"]:
+        if self.ocr_engine not in ["tesseract", "no_ocr"]:
             raise Pdf2PdfOcrException("{0} is not a valid ocr engine. Exiting.".format(self.ocr_engine))
         self.extra_ocr_flag = args.extra_ocr_flag
         if self.extra_ocr_flag is not None:
@@ -585,6 +353,7 @@ class Pdf2PdfOcr:
         self.main_pool = multiprocessing.Pool(self.cpu_to_use)
         #
 
+    # noinspection PyDeprecation
     def check_external_tools(self):
         """Check if external tools are available, aborting or warning in case of any error."""
         self.path_tesseract = shutil.which(self.cmd_tesseract)
@@ -594,24 +363,14 @@ class Pdf2PdfOcr:
         #
         self.tesseract_can_textonly_pdf = self.test_tesseract_textonly_pdf()
         self.tesseract_version = self.get_tesseract_version()
-        #
-        self.path_cuneiform = shutil.which(self.cmd_cuneiform)
-        if self.path_cuneiform is None:
-            self.debug("cuneiform not available")
-        #
-        # Try to avoid errors on Windows with native OS "convert" command
-        # http://savage.net.au/ImageMagick/html/install-convert.html
-        # https://www.imagemagick.org/script/magick.php
-        self.path_convert = shutil.which(self.cmd_convert)
-        if not self.test_convert():
-            self.path_convert = shutil.which(self.cmd_magick)
-        if self.path_convert is None:
-            eprint("convert/magick from ImageMagick not found. Aborting...")
+        if self.tesseract_version < 4:
+            eprint("Error: Tesseract version {0} detected. This script requires version 4.0 or higher. "
+                   "Please upgrade your Tesseract installation. Aborting...".format(self.tesseract_version))
             sys.exit(1)
         #
-        self.path_mogrify = shutil.which(self.cmd_mogrify)
-        if self.path_mogrify is None:
-            eprint("mogrify from ImageMagick not found. Aborting...")
+        self.path_magick = shutil.which(self.cmd_magick)
+        if self.path_magick is None:
+            eprint("magick from ImageMagick not found. Aborting...")
             sys.exit(1)
         #
         self.path_file = shutil.which(self.cmd_file)
@@ -744,7 +503,7 @@ class Pdf2PdfOcr:
                              "=pdf2pdfocr%20development&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donateCC_LG%2egif%3aNonHosted"
         bitcoin_address = "bc1qqd4pj0pymptwg523ems8pxgjwdslh7ujv5egqg"
         dogecoin_address = "D94hD2qPnkxmZk8qa1b6F1d7NfUrPkmcrG"
-        pix_key = "54fdb88f-dae3-433b-9e4d-e0c0408daf74"
+        pix_key = "d3222ec1-74e6-40e0-a2d6-8f2d8e9f1568"
         success_message = f"""Success in {time_elapsed:.3f} seconds!
 This software is free, but if you like it, please donate to support new features.
 ---> Paypal
@@ -768,16 +527,16 @@ This software is free, but if you like it, please donate to support new features
         if self.path_qpdf is not None:
             try:
                 with open(image_pdf_file_path, "rb") as img_f:
-                    img_data = PyPDF2.PdfReader(img_f, strict=False)
-                    first_page_img_rect = img_data.pages[0].mediaBox
-                    first_page_img_area = first_page_img_rect.getWidth() * first_page_img_rect.getHeight()
+                    img_data = pypdf.PdfReader(img_f, strict=False)
+                    first_page_img_rect = img_data.pages[0].mediabox
+                    first_page_img_area = first_page_img_rect.width * first_page_img_rect.height
             except PdfReadError:
                 eprint("Warning: could not read input file page geometry. Merge may fail, please check input file.")
                 first_page_img_area = 0
             with open(text_pdf_file_path, "rb") as txt_f:
-                txt_data = PyPDF2.PdfReader(txt_f, strict=False)
-                first_page_txt_rect = txt_data.pages[0].mediaBox
-                first_page_txt_area = first_page_txt_rect.getWidth() * first_page_txt_rect.getHeight()
+                txt_data = pypdf.PdfReader(txt_f, strict=False)
+                first_page_txt_rect = txt_data.pages[0].mediabox
+                first_page_txt_area = first_page_txt_rect.width * first_page_txt_rect.height
             #
             # Define overlay / underlay based on biggest page
             if first_page_txt_area < first_page_img_area:
@@ -870,7 +629,7 @@ This software is free, but if you like it, please donate to support new features
         self.log("Rebuilding PDF from images")
         rebuild_pool_map = self.main_pool.starmap_async(do_rebuild,
                                                         zip(rebuild_list,
-                                                            itertools.repeat(self.path_convert),
+                                                            itertools.repeat(self.path_magick),
                                                             itertools.repeat(convert_params),
                                                             itertools.repeat(self.tmp_dir),
                                                             itertools.repeat(self.shell_mode)))
@@ -885,9 +644,9 @@ This software is free, but if you like it, please donate to support new features
         rebuilt_pdf_file_list = sorted(glob.glob(self.tmp_dir + "REBUILD_{0}*.pdf".format(self.prefix)))
         self.debug("We have {0} rebuilt PDF files".format(len(rebuilt_pdf_file_list)))
         if len(rebuilt_pdf_file_list) > 0:
-            pdf_merger = PyPDF2.PdfMerger()
+            pdf_merger = pypdf.PdfWriter()
             for rebuilt_pdf_file in rebuilt_pdf_file_list:
-                pdf_merger.append(PyPDF2.PdfReader(rebuilt_pdf_file, strict=False))
+                pdf_merger.append(pypdf.PdfReader(rebuilt_pdf_file, strict=False))
             pdf_merger.write(self.tmp_dir + self.prefix + "-input_unprotected.pdf")
             pdf_merger.close()
         else:
@@ -905,12 +664,12 @@ This software is free, but if you like it, please donate to support new features
     def try_repair_input_and_merge(self):
         self.debug("Fail to merge source PDF with extracted OCR text. Trying to fix source PDF to build final file...")
         prepair1 = subprocess.Popen(
-            [self.path_pdf2ps, self.input_file, self.tmp_dir + self.prefix + "-fixPDF.ps"],
+            [str(self.path_pdf2ps), str(self.input_file), str(self.tmp_dir) + str(self.prefix) + "-fixPDF.ps"],
             stdout=subprocess.DEVNULL,
             stderr=open(self.tmp_dir + "err_pdf2ps-{0}.log".format(self.prefix), "wb"),
             shell=self.shell_mode)
         prepair1.wait()
-        prepair2 = subprocess.Popen([self.path_ps2pdf, self.tmp_dir + self.prefix + "-fixPDF.ps",
+        prepair2 = subprocess.Popen([str(self.path_ps2pdf), self.tmp_dir + self.prefix + "-fixPDF.ps",
                                      self.tmp_dir + self.prefix + "-fixPDF.pdf"],
                                     stdout=subprocess.DEVNULL,
                                     stderr=open(self.tmp_dir + "err_ps2pdf-{0}.log".format(self.prefix),
@@ -940,9 +699,9 @@ This software is free, but if you like it, please donate to support new features
         text_pdf_file_list = sorted(glob.glob(self.tmp_dir + "{0}*.{1}".format(self.prefix, "pdf")))
         self.debug("We have {0} ocr'ed files".format(len(text_pdf_file_list)))
         if len(text_pdf_file_list) > 0:
-            pdf_merger = PyPDF2.PdfMerger()
+            pdf_merger = pypdf.PdfWriter()
             for text_pdf_file in text_pdf_file_list:
-                pdf_merger.append(PyPDF2.PdfReader(text_pdf_file, strict=False))
+                pdf_merger.append(pypdf.PdfReader(text_pdf_file, strict=False))
             pdf_merger.write(self.tmp_dir + self.prefix + "-ocr.pdf")
             pdf_merger.close()
         else:
@@ -952,18 +711,10 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Joined ocr'ed PDF files")
 
     def external_ocr(self, image_file_list):
-        if self.ocr_engine in ["cuneiform", "tesseract"]:
+        if self.ocr_engine in ["tesseract"]:
             self.log("Starting OCR with {0}...".format(self.ocr_engine))
             image_list_for_external_ocr = [x for x in image_file_list if x not in self.blank_pages]
-            if self.ocr_engine == "cuneiform":
-                ocr_pool_map = self.main_pool.starmap_async(do_ocr_cuneiform,
-                                                            zip(image_list_for_external_ocr,
-                                                                itertools.repeat(self.extra_ocr_flag),
-                                                                itertools.repeat(self.tess_langs),
-                                                                itertools.repeat(self.tmp_dir),
-                                                                itertools.repeat(self.shell_mode),
-                                                                itertools.repeat(self.path_cuneiform)))
-            elif self.ocr_engine == "tesseract":
+            if self.ocr_engine == "tesseract":
                 ocr_pool_map = self.main_pool.starmap_async(do_ocr_tesseract,
                                                             zip(image_list_for_external_ocr,
                                                                 itertools.repeat(self.extra_ocr_flag),
@@ -1010,6 +761,9 @@ This software is free, but if you like it, please donate to support new features
             if is_blank:
                 self.blank_pages.append(t_image)
                 self.blank_pages_dimensions.append(color_size_info[1])
+                self.blank_pages_numbers.append(idx + 1)
+        if len(self.blank_pages) > 0:
+            self.log(f"There are {len(self.blank_pages)} blank pages: {self.blank_pages_numbers}")
 
     def autorotate_info(self, image_file_list):
         if self.use_autorotate:
@@ -1020,8 +774,7 @@ This software is free, but if you like it, please donate to support new features
                                                                    itertools.repeat(self.shell_mode),
                                                                    itertools.repeat(self.tmp_dir),
                                                                    itertools.repeat(self.tess_langs),
-                                                                   itertools.repeat(self.path_tesseract),
-                                                                   itertools.repeat(self.tesseract_version)))
+                                                                   itertools.repeat(self.path_tesseract)))
             autorotate_rounds = 0
             while not autorotate_pool_map.ready() and (self.main_pool is not None):
                 autorotate_rounds += 1
@@ -1045,8 +798,8 @@ This software is free, but if you like it, please donate to support new features
         if self.use_autorotate and not skip_autorotate:
             self.debug("Autorotate final output")
             file_source = open(param_source_file, 'rb')
-            pre_output_pdf = PyPDF2.PdfReader(file_source, strict=False)
-            final_output_pdf = PyPDF2.PdfWriter()
+            pre_output_pdf = pypdf.PdfReader(file_source, strict=False)
+            final_output_pdf = pypdf.PdfWriter()
             rotation_angles = []
             osd_page_num = 0
             for osd_information_file in list_osd:
@@ -1065,8 +818,8 @@ This software is free, but if you like it, please donate to support new features
             #
             for i in range(len(pre_output_pdf.pages)):
                 page = pre_output_pdf.pages[i]
-                page.rotateClockwise(rotation_angles[i])
-                final_output_pdf.addPage(page)
+                page.rotate(rotation_angles[i])
+                final_output_pdf.add_page(page)
             #
             with open(param_dest_file, 'wb') as f:
                 final_output_pdf.write(f)
@@ -1083,7 +836,7 @@ This software is free, but if you like it, please donate to support new features
             self.debug("Applying deskew (will rebuild final PDF file)")
             image_list_for_deskew = [x for x in image_file_list if x not in self.blank_pages]
             deskew_pool_map = self.main_pool.starmap_async(do_deskew, zip(image_list_for_deskew, itertools.repeat(self.deskew_threshold),
-                                                                          itertools.repeat(self.shell_mode), itertools.repeat(self.path_mogrify)))
+                                                                          itertools.repeat(self.shell_mode), itertools.repeat(self.path_magick)))
             deskew_wait_rounds = 0
             while not deskew_pool_map.ready() and (self.main_pool is not None):
                 deskew_wait_rounds += 1
@@ -1100,7 +853,8 @@ This software is free, but if you like it, please donate to support new features
             if self.ignore_existing_text:
                 input_file_for_images = self.tmp_dir + "_" + self.prefix + "-input_file_for_images.pdf"
                 # Credits for Kurt Pfeifle: https://stackoverflow.com/questions/24322338/remove-all-text-from-pdf-file
-                p_ignore_text = subprocess.Popen([self.path_gs, "-o", input_file_for_images, "-sDEVICE=pdfwrite", "-dFILTERTEXT", self.input_file],
+                p_ignore_text = subprocess.Popen([str(self.path_gs), "-o", input_file_for_images, "-sDEVICE=pdfwrite", "-dFILTERTEXT",
+                                                  self.input_file],
                                                  stdout=subprocess.DEVNULL,
                                                  stderr=open(self.tmp_dir + "err_input_file_for_images-{0}.log".format(self.prefix),
                                                              "wb"), shell=self.shell_mode)
@@ -1128,7 +882,7 @@ This software is free, but if you like it, please donate to support new features
         else:
             if self.input_file_type in ["image/tiff", "image/jpeg", "image/png"]:
                 # %09d to format files for correct sort
-                p = subprocess.Popen([self.path_convert, self.input_file, '-quality', '100', '-scene', '1',
+                p = subprocess.Popen([str(self.path_magick), self.input_file, '-quality', '100', '-scene', '1',
                                       self.tmp_dir + self.prefix + '-%09d.' + self.extension_images],
                                      shell=self.shell_mode)
                 p.wait()
@@ -1148,8 +902,8 @@ This software is free, but if you like it, please donate to support new features
             if self.force_out_dir_mode:
                 output_dir = os.path.abspath(self.force_out_dir)
             else:
-                output_dir = os.path.dirname(self.input_file)
-            output_name_no_ext = os.path.splitext(os.path.basename(self.input_file))[0]
+                output_dir = os.path.dirname(str(self.input_file))
+            output_name_no_ext = os.path.splitext(os.path.basename(str(self.input_file)))[0]
             self.output_file = output_dir + os.path.sep + output_name_no_ext + "-OCR.pdf"
         #
         self.output_file_text = self.output_file + ".txt"
@@ -1162,10 +916,27 @@ This software is free, but if you like it, please donate to support new features
             if self.create_text_mode and os.path.isfile(self.output_file_text):
                 raise Pdf2PdfOcrException("{0} already exists and safe mode is enabled. Exiting.".format(self.output_file_text))
 
+    def _can_pdf_be_used_due_to_security(self, pdf_reader):
+        if pdf_reader.is_encrypted:
+            result_decrypt = pdf_reader.decrypt("")
+            if result_decrypt.name == "NOT_DECRYPTED":
+                self.debug(f"Input pdf file has content encrypted with a password")
+                return False
+            else:
+                permissions = pdf_reader.user_access_permissions
+                if permissions and pdf_reader.are_permissions_valid:
+                    self.debug(f"Input pdf file has user permissions: {permissions.to_dict()}")
+                    return True
+                else:
+                    self.debug(f"Input pdf file has no valid user permissions")
+                    return False
+        #
+        return True
+
     def validate_pdf_input_file(self):
         try:
             pdf_file_obj = open(self.input_file, 'rb')
-            pdf_reader = PyPDF2.PdfReader(pdf_file_obj, strict=False)
+            pdf_reader = pypdf.PdfReader(pdf_file_obj, strict=False)
         except PdfReadError:
             self.cleanup()
             raise Pdf2PdfOcrException("Corrupted PDF file detected. Aborting...")
@@ -1178,7 +949,7 @@ This software is free, but if you like it, please donate to support new features
         #
         self.check_avoid_high_pages()
         #
-        self.input_file_is_encrypted = pdf_reader.is_encrypted
+        self.input_file_is_encrypted = not self._can_pdf_be_used_due_to_security(pdf_reader)
         if not self.input_file_is_encrypted:
             self.input_file_metadata = pdf_reader.metadata
         #
@@ -1210,7 +981,7 @@ This software is free, but if you like it, please donate to support new features
 
     def check_for_text(self):
         """Check if input file contains text. Actually based on pdffonts from poppler"""
-        ptext = subprocess.Popen([self.path_pdffonts, self.input_file], stdout=subprocess.PIPE,
+        ptext = subprocess.Popen([str(self.path_pdffonts), self.input_file], stdout=subprocess.PIPE,
                                  stderr=subprocess.DEVNULL, shell=self.shell_mode)
         ptext_output, ptext_errors = ptext.communicate()
         ptext.wait()
@@ -1224,37 +995,17 @@ This software is free, but if you like it, please donate to support new features
 
     def detect_file_type(self):
         """Detect mime type of input file"""
-        pfile = subprocess.Popen([self.path_file, '-b', '--mime-type', self.input_file], stdout=subprocess.PIPE,
+        pfile = subprocess.Popen([str(self.path_file), '-b', '--mime-type', self.input_file], stdout=subprocess.PIPE,
                                  stderr=subprocess.DEVNULL, shell=self.shell_mode)
         pfile_output, pfile_errors = pfile.communicate()
         pfile.wait()
         self.input_file_type = pfile_output.decode("utf-8").strip()
         self.log("Input file {0}: type is {1}".format(self.input_file, self.input_file_type))
 
-    def test_convert(self):
-        """
-        test convert command to check if it's ImageMagick
-        :return: True if it's ImageMagicks convert, false with any other case or error
-        """
-        try:
-            result = False
-            test_image = self.tmp_dir + "converttest-" + self.prefix + ".jpg"
-            ptest = subprocess.Popen([self.path_convert, 'rose:', test_image], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                     shell=self.shell_mode)
-            ptest.wait()
-            return_code = ptest.returncode
-            if (return_code == 0) and (os.path.isfile(test_image)):
-                Pdf2PdfOcr.best_effort_remove(test_image)
-                result = True
-            return result
-        except Exception:
-            self.log("Error testing convert utility. Assuming there is no 'convert' available...")
-            return False
-
     def test_tesseract_textonly_pdf(self):
         result = False
         try:
-            result = ('textonly_pdf' in subprocess.check_output([self.path_tesseract, '--print-parameters'], universal_newlines=True))
+            result = ('textonly_pdf' in subprocess.check_output([str(self.path_tesseract), '--print-parameters'], universal_newlines=True))
         except Exception:
             self.log("Error checking tesseract capabilities. Trying to continue without 'textonly_pdf' in Tesseract")
         #
@@ -1264,7 +1015,7 @@ This software is free, but if you like it, please donate to support new features
     def get_tesseract_version(self):
         # Inspired by the great lib 'pytesseract' - https://github.com/madmaze/pytesseract/blob/master/src/pytesseract.py
         try:
-            version_info = subprocess.check_output([self.path_tesseract, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            version_info = subprocess.check_output([str(self.path_tesseract), '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             # self.debug("Tesseract full version info: {0}".format(version_info))
             version_info = version_info[1].lstrip(string.printable[10:])
             l_version_info = parse_version(version_info)
@@ -1277,7 +1028,7 @@ This software is free, but if you like it, please donate to support new features
 
     def get_qpdf_version(self):
         try:
-            version_info = subprocess.check_output([self.path_qpdf, '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            version_info = subprocess.check_output([str(self.path_qpdf), '--version'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
             l_version_info = parse_version(version_info)
             self.debug("Qpdf version: {0}".format(l_version_info))
@@ -1289,7 +1040,7 @@ This software is free, but if you like it, please donate to support new features
 
     def get_pdftoppm_version(self):
         try:
-            version_info = subprocess.check_output([self.path_pdftoppm, '-v'], stderr=subprocess.STDOUT).decode('utf-8').split()
+            version_info = subprocess.check_output([str(self.path_pdftoppm), '-v'], stderr=subprocess.STDOUT).decode('utf-8').split()
             version_info = version_info[2]
             l_version_info = parse_version(version_info)
             self.debug("Pdftoppm version: {0}".format(l_version_info))
@@ -1301,7 +1052,7 @@ This software is free, but if you like it, please donate to support new features
 
     def calculate_ranges(self):
         """
-        calculate ranges to run pdftoppm in parallel. Each CPU available will run well defined page range
+        calculate ranges to run pdftoppm in parallel. Each CPU available will run well-defined page range
         :return:
         """
         if (self.input_file_number_of_pages is None) or (self.input_file_number_of_pages < 20):  # 20 to avoid unnecessary parallel operation
@@ -1330,11 +1081,11 @@ This software is free, but if you like it, please donate to support new features
         self.debug("Editing producer")
         param_source_file = self.tmp_dir + self.prefix + "-OUTPUT-ROTATED.pdf"
         file_source = open(param_source_file, 'rb')
-        pre_output_pdf = PyPDF2.PdfReader(file_source, strict=False)
-        final_output_pdf = PyPDF2.PdfWriter()
+        pre_output_pdf = pypdf.PdfReader(file_source, strict=False)
+        final_output_pdf = pypdf.PdfWriter()
         for i in range(len(pre_output_pdf.pages)):
             page = pre_output_pdf.pages[i]
-            final_output_pdf.addPage(page)
+            final_output_pdf.add_page(page)
         info_dict_output = dict()
         # Our signature as a producer
         our_name = "PDF2PDFOCR(github.com/LeoFCardoso/pdf2pdfocr)"
@@ -1352,7 +1103,7 @@ This software is free, but if you like it, please donate to support new features
                 #
                 try:
                     # Check if value can be accepted by pypdf API
-                    PyPDF2.generic.createStringObject(value)
+                    pypdf.generic.create_string_object(value)
                     info_dict_output[key] = value
                 except TypeError:
                     # This can happen with some array properties.
@@ -1407,14 +1158,14 @@ if __name__ == '__main__':
     #
     # Arguments
     parser = argparse.ArgumentParser(
-        description=('pdf2pdfocr.py [https://github.com/LeoFCardoso/pdf2pdfocr] version %s (http://semver.org/lang/pt-BR/)' % VERSION),
+        description=('pdf2pdfocr.py [https://github.com/LeoFCardoso/pdf2pdfocr] version %s (https://semver.org/lang/pt-BR/)' % VERSION),
         formatter_class=argparse.RawTextHelpFormatter)
     requiredNamed = parser.add_argument_group('required arguments')
     requiredNamed.add_argument("-i", dest="input_file", action="store", required=True,
                                help="path for input file or folder")
     #
     parser.add_argument("-c", dest="ocr_engine", action="store", default="tesseract", type=str,
-                        help="specify OCR engine (tesseract, cuneiform, no_ocr). "
+                        help="specify OCR engine (tesseract, no_ocr). "
                              "Use no_ocr to skip OCR (for example, to test -f/-g configurations). "
                              "Default: tesseract")
     parser.add_argument("-s", dest="safe_mode", action="store_true", default=False,
@@ -1462,9 +1213,9 @@ Examples:
                         help="specify image resolution in DPI before OCR operation - lower is faster, higher "
                              "improves OCR quality (default is for quality = 300)")
     parser.add_argument("-e", dest="text_generation_strategy", action="store", default="tesseract", type=str,
-                        help="specify how text is generated in final pdf file (tesseract, native) [tesseract only]. Default: tesseract")
+                        help="specify how text is generated in final pdf file (tesseract) [tesseract only]. Default: tesseract")
     parser.add_argument("-l", dest="tess_langs", action="store", required=False,
-                        help="force tesseract or cuneiform to use specific language (default: por+eng)")
+                        help="force tesseract to use specific language (default: por+eng)")
     parser.add_argument("-m", dest="tess_psm", action="store", required=False,
                         help="force tesseract to use OCR with specific \"pagesegmode\" (default: tesseract "
                              "OCR default = 1) [tesseract only]. Use with caution")

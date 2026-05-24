@@ -1,8 +1,8 @@
 # pdf2pdfocr
 #
-# Dockerfile version 7.0 (Ubuntu 24.04)
+# Dockerfile version 8.0 (Ubuntu 26.04 LTS)
 #
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 LABEL maintainer="Leonardo F. Cardoso <leonardo.f.cardoso@gmail.com>"
 
 RUN useradd docker \
@@ -11,7 +11,6 @@ RUN useradd docker \
 
 # OS Software dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cuneiform \
     qpdf \
     file \
     ghostscript \
@@ -29,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Allow IM to process PDF
-RUN rm /etc/ImageMagick-6/policy.xml
+RUN rm /etc/ImageMagick-7/policy.xml
 
 # Uncomment for test
 # RUN tesseract --list-langs
